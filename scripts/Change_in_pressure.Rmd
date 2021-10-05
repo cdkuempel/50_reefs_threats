@@ -1,0 +1,236 @@
+---
+title: "2009_pressures"
+author: "Caitie"
+date: "13/02/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(doParallel)
+library(foreach)
+library(raster)
+library(here)
+```
+
+
+# Pressures (stressors x vulnerability)
+
+2008
+
+```{r}
+#Weblinks
+
+pressure_urls_2008<-c("https://knb.ecoinformatics.org/knb/d1/mn/v2/object/cumulative_impact_two_2008_global_cumul_impact_2008_all_layers_except_shipping_oceanpollution_invasives_mol_20150714064603",
+                      "https://knb.ecoinformatics.org/knb/d1/mn/v2/object/pressure_two_2008_artisanal_fishing_mol_20150714063816",
+                      "https://knb.ecoinformatics.org/knb/d1/mn/v2/object/pressure_two_2008_demersal_destructive_fishing_mol_20150714063831",
+                      "https://knb.ecoinformatics.org/knb/d1/mn/v2/object/pressure_two_2008_demersal_nondest_high_bycatch_mol_20150714063854",
+                      "https://knb.ecoinformatics.org/knb/d1/mn/v2/object/pressure_two_2008_demersal_nondest_low_bycatch_mol_20150714063916",
+                      "https://knb.ecoinformatics.org/knb/d1/mn/v2/object/pressure_two_2008_inorganic_mol_20150714063931",
+                      "https://knb.ecoinformatics.org/knb/d1/mn/v2/object/pressure_two_2008_night_lights_mol_20150714063936",
+                      "https://knb.ecoinformatics.org/knb/d1/mn/v2/object/pressure_two_2008_ocean_acidification_mol_20150714063941",
+                      "https://knb.ecoinformatics.org/knb/d1/mn/v2/object/pressure_two_2008_oil_rigs_mol_20150714063945",
+                      "https://knb.ecoinformatics.org/knb/d1/mn/v2/object/pressure_two_2008_pelagic_high_bycatch_mol_20150714063948",
+                      "https://knb.ecoinformatics.org/knb/d1/mn/v2/object/pressure_two_2008_pelagic_low_bycatch_mol_20150714064002",
+                      "https://knb.ecoinformatics.org/knb/d1/mn/v2/object/pressure_two_2008_plumes_fert_mol_20150714064015",
+                      "https://knb.ecoinformatics.org/knb/d1/mn/v2/object/pressure_two_2008_plumes_pest_mol_20150714064022",
+                      "https://knb.ecoinformatics.org/knb/d1/mn/v2/object/pressure_two_2008_population_mol_20150714064026",
+                      "https://knb.ecoinformatics.org/knb/d1/mn/v2/object/pressure_two_2008_sst_mol_20150714064048",
+                      "https://knb.ecoinformatics.org/knb/d1/mn/v2/object/pressure_two_2008_uv_mol_20150714064250")
+
+pressure_urls_2013<-c("https://knb.ecoinformatics.org/knb/d1/mn/v2/object/cumulative_impact_two_2013_global_cumul_impact_2013_all_layers_except_shipping_oceanpollution_invasives_slr_mol_20150714063701",
+                      "https://knb.ecoinformatics.org/knb/d1/mn/v2/object/pressure_two_2013_artisanal_fishing_mol_20150714062846",
+                      "https://knb.ecoinformatics.org/knb/d1/mn/v2/object/pressure_two_2013_demersal_destructive_fishing_mol_20150714062903",
+                      "https://knb.ecoinformatics.org/knb/d1/mn/v2/object/pressure_two_2013_demersal_nondest_high_bycatch_mol_20150714062926",
+                      "https://knb.ecoinformatics.org/knb/d1/mn/v2/object/pressure_two_2013_demersal_nondest_low_bycatch_mol_20150714062949",
+                      "https://knb.ecoinformatics.org/knb/d1/mn/v2/object/pressure_two_2013_inorganic_mol_20150714063003",
+                      "https://knb.ecoinformatics.org/knb/d1/mn/v2/object/pressure_two_2013_night_lights_mol_20150714063008",
+                      "https://knb.ecoinformatics.org/knb/d1/mn/v2/object/pressure_two_2013_ocean_acidification_mol_20150714063015",
+                      "https://knb.ecoinformatics.org/knb/d1/mn/v2/object/pressure_two_2013_oil_rigs_mol_20150714063019",
+                      "https://knb.ecoinformatics.org/knb/d1/mn/v2/object/pressure_two_2013_pelagic_high_bycatch_mol_20150714063023",
+                      "https://knb.ecoinformatics.org/knb/d1/mn/v2/object/pressure_two_2013_pelagic_low_bycatch_mol_20150714063038",
+                      "https://knb.ecoinformatics.org/knb/d1/mn/v2/object/pressure_two_2013_plumes_fert_mol_20150714063052",
+                      "https://knb.ecoinformatics.org/knb/d1/mn/v2/object/pressure_two_2013_plumes_pest_mol_20150714063059",
+                      "https://knb.ecoinformatics.org/knb/d1/mn/v2/object/pressure_two_2013_population_mol_20150714063104",
+                      "https://knb.ecoinformatics.org/knb/d1/mn/v2/object/pressure_two_2013_sst_mol_20150714063130",
+                      "https://knb.ecoinformatics.org/knb/d1/mn/v2/object/pressure_two_2013_uv_mol_20150714063348"
+                      )
+```
+
+
+```{r}
+cl<-makeCluster(7)
+registerDoParallel(cl)
+
+foreach(i = 1:length(pressure_urls_2008)) %dopar% {
+mydir<-here::here("raw_data/pressure_difference/2008") #path to save files
+temp<-tempfile(tmpdir=mydir, fileext=".zip")
+download.file(pressure_urls_2008[i], temp)
+unzip(temp, exdir=mydir)
+unlink(temp) #delete the zip file
+}
+```
+
+```{r}
+cl<-makeCluster(7)
+registerDoParallel(cl)
+
+foreach(i = 1:length(pressure_urls_2013)) %dopar% {
+mydir<-here::here("raw_data/pressure_difference/2013") #path to save files
+temp<-tempfile(tmpdir=mydir, fileext=".zip")
+download.file(pressure_urls_2013[i], temp)
+unzip(temp, exdir=mydir)
+unlink(temp) #delete the zip file
+}
+```
+
+
+# 2008 files
+
+```{r}
+mydir<-here("raw_data/pressure_difference/2008/")
+files<-list.files(path = mydir, pattern = "tif$")
+
+mydir13<-here("raw_data/pressure_difference/2013/")
+files13<-list.files(path = mydir, pattern = "tif$")
+```
+
+# Climate pressures
+
+```{r}
+# Sea level rise not in both time periods.
+clim_press<-c(paste0(mydir,"sst_combo.tif"),
+              paste0(mydir,"uv_combo.tif"),
+              paste0(mydir,"ocean_acidification_combo.tif"))
+
+
+clim_stack<-stack(clim_press)
+
+clim_sum<-sum(clim_stack)
+
+clim_press13<-c(paste0(mydir13,"sst_combo.tif"),
+              paste0(mydir13,"uv_combo.tif"),
+              paste0(mydir13,"ocean_acidification_combo.tif"))
+
+clim_stack13<-stack(clim_press13)
+
+clim_sum13<-sum(clim_stack13)
+
+
+
+writeRaster(clim_sum, here("output_data/pressure_difference/climate_pressures_sum_2008.tif"), overwrite = T)
+writeRaster(clim_sum13, here("output_data/pressure_difference/climate_pressures_sum_2013.tif"), overwrite = T)
+
+```
+
+
+```{r}
+clim_diff<-overlay(clim_sum13,
+                   clim_sum,
+                   fun = function(r1, r2){return(r1-r2)})
+
+writeRaster(clim_diff, here("output_data/pressure_difference/clim_pressures_diff.tif"), overwrite = T)
+```
+
+# Land pressures
+
+```{r}
+land_press<-c(paste0(mydir,"inorganic_combo.tif"),
+              paste0(mydir,"plumes_fert_combo.tif"),
+              paste0(mydir,"plumes_pest_combo.tif"),
+              paste0(mydir,"population_combo.tif"),
+              paste0(mydir,"night_lights_combo.tif"))
+
+land_stack<-stack(land_press)
+
+land_sum<-sum(land_stack)
+
+land_press13<-c(paste0(mydir13,"inorganic_combo.tif"),
+              paste0(mydir13,"plumes_fert_combo.tif"),
+              paste0(mydir13,"plumes_pest_combo.tif"),
+              paste0(mydir13,"population_combo.tif"),
+              paste0(mydir13,"night_lights_combo.tif"))
+
+land_stack13<-stack(land_press13)
+
+land_sum13<-sum(land_stack13)
+
+
+
+writeRaster(land_sum, here("output_data/pressure_difference/land_pressures_sum_2008.tif"), overwrite = T)
+writeRaster(land_sum13, here("output_data/pressure_difference/land_pressures_sum_2013.tif"), overwrite = T)
+
+
+```
+
+```{r}
+land_diff<-overlay(land_sum13,
+                   land_sum,
+                   fun = function(r1, r2){return(r1-r2)})
+
+writeRaster(land_diff, here("output_data/pressure_difference/land_pressures_diff.tif"), overwrite = T)
+
+```
+
+# Marine pressures
+
+```{r}
+#Invasives, shipping and ocean pollution have no data in 2008 and 2013
+mar_press<-c(paste0(mydir,"artisanal_fishing_combo.tif"),
+             paste0(mydir,"demersal_destructive_fishing_combo.tif"),
+             paste0(mydir,"oil_rigs_combo.tif"),
+             paste0(mydir,"pelagic_high_bycatch_combo.tif"),
+             paste0(mydir,"pelagic_low_bycatch_combo.tif"),
+             paste0(mydir,"demersal_nondest_high_bycatch_combo.tif"),
+             paste0(mydir,"demersal_nondest_low_bycatch_combo.tif"))
+
+mar_stack<-stack(mar_press)
+
+mar_sum<-sum(mar_stack)
+
+mar_press13<-c(paste0(mydir13,"artisanal_fishing_combo.tif"),
+             paste0(mydir13,"demersal_destructive_fishing_combo.tif"),
+             paste0(mydir13,"oil_rigs_combo.tif"),
+             paste0(mydir13,"pelagic_high_bycatch_combo.tif"),
+             paste0(mydir13,"pelagic_low_bycatch_combo.tif"),
+             paste0(mydir13,"demersal_nondest_high_bycatch_combo.tif"),
+             paste0(mydir13,"demersal_nondest_low_bycatch_combo.tif"))
+
+mar_stack13<-stack(mar_press13)
+
+mar_sum13<-sum(mar_stack13)
+
+writeRaster(mar_sum, here("output_data/pressure_difference/marine_pressures_sum_2008.tif"), overwrite = T)
+writeRaster(mar_sum13, here("output_data/pressure_difference/marine_pressures_sum_2013.tif"), overwrite = T)
+
+```
+
+```{r}
+mar_diff<-overlay(mar_sum13,
+                   mar_sum,
+                   fun = function(r1, r2){return(r1-r2)})
+
+writeRaster(mar_diff, here("output_data/pressure_difference/mar_pressures_diff.tif"), overwrite = T)
+
+```
+
+# Calculate cumulative change
+
+```{r}
+cum08<-raster("/home/kuempel/Cumulative_threats_data/pressure_difference/2008/global_cumul_impact_2008_all_layers_except_shipping_oceanpollution_invasives.tif")
+cum13<-raster("/home/kuempel/Cumulative_threats_data/pressure_difference/2013/global_cumul_impact_2013_all_layers_except_shipping_oceanpollution_invasives_slr.tif")
+```
+
+```{r}
+
+cum_diff<-overlay(cum13,
+                   cum08,
+                   fun = function(r1, r2){return(r1-r2)})
+
+writeRaster(cum_diff, here("output_data/pressure_difference/cum_diff.tif"), overwrite = T)
+
+```
