@@ -1,0 +1,569 @@
+---
+title: "Reef_threats"
+author: "Caitie"
+date: "08/02/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(raster)
+library(sf)
+library(tidyverse)
+library(lwgeom)
+library(here)
+```
+
+
+# Intersect country EEZs and reef shapefiles
+
+## Country EEZ shapefile
+
+Download data from https://www.marineregions.org/downloads.php
+
+Dissolve country boundaries - FYI this takes awhile. Avoid running multiple times.
+
+```{r}
+eez<-st_read(here("raw_data/EEZ/eez_v10.shp"))
+
+eez_moll<-st_transform(eez, "+proj=moll +lon_0=0 +x_0=0 +y_0=0 +ellps=WGS84 +units=m +no_defs")
+
+eez_moll<-st_make_valid(eez_moll)
+
+#Dissolve by ISO_Ter1 variable
+
+eez_moll_diss<-eez_moll %>% 
+  group_by(ISO_Ter1) %>% 
+  summarise()
+
+st_write(eez_moll_diss, here("output_data/EEZ/eez_moll_diss.shp"), delete_layer = T)
+```
+
+## Reefs shapefile
+
+```{r}
+eez_moll_diss<-st_read(here("output_data/EEZ/eez_moll_diss.shp"))
+eez_moll_diss<-st_make_valid(eez_moll_diss)
+eez_moll_diss<-st_transform(eez_moll_diss, "+proj=moll +lon_0=0 +x_0=0 +y_0=0 +ellps=WGS84 +units=m +no_defs ")
+
+reefs<-st_read(here("raw_data/reefs/50Reefs_Balanced.shp"))
+
+reefs_moll<-st_transform(reefs, st_crs(eez_moll_diss))
+
+reefs_moll<-st_make_valid(reefs_moll)
+```
+
+```{r}
+eez_border<-eez_moll_diss %>% 
+  mutate(id = 1) %>% 
+  group_by(id) %>% 
+  summarise(test = sum(id, na.rm = T))
+
+st_write(eez_border, here("output_data/EEZ/eez_border.shp"), delete_layer = T)
+
+eez_border<-st_read(here("output_data/EEZ/eez_border.shp"))
+```
+
+
+## Intersect
+
+```{r}
+iso3_reefs<-st_intersection(eez_moll_diss, reefs_moll)
+
+#test<-st_cast(iso3_reefs, "POLYGON")
+
+#Create new code for country/reef combos
+st_write(iso3_reefs, here("output_data/reefs/eez_reefs_intersect.shp"), delete_layer = TRUE)
+```
+
+
+## Dissolve reefs within each country
+
+```{r}
+# Dissolve reefs within each country
+
+reef_eez_moll_diss<-iso3_reefs %>% 
+  group_by(ISO_Ter1) %>% 
+  summarise()
+
+st_write(reef_eez_moll_diss, here("output_data/reefs/eez_reefs_dissolve.shp"), delete_layer = T)
+
+reef_eez_moll_diss<-st_read(here("output_data/reefs/eez_reefs_dissolve.shp"))
+
+```
+
+# Intersect EEZ with Reefs to remove land areas
+
+```{r}
+reefs_moll2<-st_intersection(reefs_moll, eez_border)
+
+reefs_moll2<-reefs_moll2 %>% 
+  dplyr::select(-id, -test) %>% 
+  rename(BCUID = puid)
+
+reefs_moll2_df<-reefs_moll2 %>% 
+  mutate(area = st_area(.)) %>% 
+  as.data.frame()%>% 
+  dplyr::select(-geometry) 
+
+```
+
+# Threat data
+
+```{r}
+
+# Cumulative
+
+cum_sum<-raster(here("raw_data/pressures/global_cumul_impact_2013_all_layers.tif"))
+  
+# Land
+
+land_sum<-raster(here("output_data/pressures/land_pressures_sum.tif"))
+
+# Marine
+  
+mar_sum<-raster(here("output_data/pressures/marine_pressures_sum.tif"))
+
+# Climate
+
+clim_sum<-raster(here("output_data/pressures/climate_pressures_sum.tif"))
+```
+
+
+# Average 2013 cumulative pressures within reefs
+
+Please note that the list elements are ordered, that is to say that the first list element corresponds to the first polygon. Because of this, any summary of the list will stay ordered with the polygon data.
+
+```{r}
+# Extract raster values to list object
+
+reef_cum_vals <- raster::extract(cum_sum, reefs_moll2)
+iso3_cum_vals<-raster::extract(cum_sum, reef_eez_moll_diss)
+
+reef_cum_mean <-lapply(reef_cum_vals, FUN=mean) %>% 
+  unlist() %>% 
+  as.data.frame() %>% 
+  rename(cum_mean = ".")
+
+iso3_cum_mean<-lapply(iso3_cum_vals, FUN=mean) %>% 
+   unlist() %>% 
+  as.data.frame() %>% 
+  rename(cum_mean = ".")
+
+```
+
+
+# Average land/marine/climate cumulative pressures within reefs
+
+```{r}
+# Extract raster values to list object
+reef_clim_vals <- raster::extract(clim_sum, reefs_moll2) 
+reef_land_vals <- raster::extract(land_sum, reefs_moll2) 
+reef_mar_vals <- raster::extract(mar_sum, reefs_moll2) 
+
+iso3_clim_vals <- raster::extract(clim_sum, reef_eez_moll_diss)
+iso3_land_vals <- raster::extract(land_sum,reef_eez_moll_diss)
+iso3_mar_vals <- raster::extract(mar_sum, reef_eez_moll_diss)
+
+# Use list apply to calculate mean for each polygon
+reef_clim_mean<-lapply(reef_clim_vals, FUN=mean) %>% 
+  unlist() %>% 
+  as.data.frame() %>% 
+  rename(clim_mean = ".")
+
+reef_land_mean<-lapply(reef_land_vals, FUN=mean) %>% 
+  unlist() %>% 
+  as.data.frame() %>% 
+  rename(land_mean = ".")
+
+reef_mar_mean<-lapply(reef_mar_vals, FUN=mean) %>% 
+  unlist() %>% 
+  as.data.frame() %>% 
+  rename(mar_mean = ".")
+
+iso3_clim_mean<-lapply(iso3_clim_vals, FUN=mean) %>% 
+  unlist() %>% 
+  as.data.frame() %>% 
+  rename(clim_mean = ".")
+
+iso3_land_mean<-lapply(iso3_land_vals, FUN=mean) %>% 
+  unlist() %>% 
+  as.data.frame() %>% 
+  rename(land_mean = ".")
+
+iso3_mar_mean<-lapply(iso3_mar_vals, FUN=mean) %>% 
+  unlist() %>% 
+  as.data.frame() %>% 
+  rename(mar_mean = ".")
+
+```
+
+
+# Join threat data to shapefiles
+
+```{r}
+reef_id<-reefs_moll2 %>% 
+  as.data.frame() %>% 
+  dplyr::select(BCUID) 
+
+reef_threats<-cbind(reef_id,reef_cum_mean, reef_clim_mean, reef_land_mean, reef_mar_mean)
+
+reef_threats_shp<-left_join(reefs_moll2, reef_threats, by = "BCUID") 
+
+st_write(reef_threats_shp, here("output_data/reefs/reef_threats.shp"), delete_layer = T)
+
+```
+
+```{r}
+iso3<-reef_eez_moll_diss %>% 
+  as.data.frame() %>% 
+  dplyr::select(ISO_Ter1)
+
+iso3_reef_threats<-cbind(iso3,iso3_cum_mean, iso3_clim_mean, iso3_land_mean, iso3_mar_mean)
+
+iso3_reef_threats_shp<-left_join(reef_eez_moll_diss, iso3_reef_threats, by = "ISO_Ter1")
+
+st_write(iso3_reef_threats_shp, here("output_data/reefs/iso3_reef_threats.shp"), delete_layer = T)
+
+```
+
+# Change in cumulative impact
+
+```{r}
+change_cum_sum<-raster(here("output_data/pressure_difference/cum_diff.tif"))
+  
+# Land
+
+change_land_sum<-raster(here("output_data/pressure_difference/land_pressures_diff.tif"))
+
+# Marine
+  
+change_mar_sum<-raster(here("output_data/pressure_difference/mar_pressures_diff.tif"))
+
+# Climate
+
+change_clim_sum<-raster(here("output_data/pressure_difference/clim_pressures_diff.tif"))
+```
+
+
+```{r}
+reef_cum_diff<- raster::extract(change_cum_sum, reefs_moll2)
+reef_clim_diff <- raster::extract(change_clim_sum, reefs_moll2) 
+reef_land_diff <- raster::extract(change_land_sum, reefs_moll2) 
+reef_mar_diff <- raster::extract(change_mar_sum, reefs_moll2) 
+
+iso3_cum_diff<-raster::extract(change_cum_sum, reef_eez_moll_diss)
+iso3_clim_diff <- raster::extract(change_clim_sum, reef_eez_moll_diss)
+iso3_land_diff <- raster::extract(change_land_sum,reef_eez_moll_diss)
+iso3_mar_diff <- raster::extract(change_mar_sum, reef_eez_moll_diss)
+```
+
+```{r}
+cum08<-raster(here("raw_data/pressure_difference/2008/global_cumul_impact_2008_all_layers_except_shipping_oceanpollution_invasives.tif"))
+cum13<-raster(here("raw_data/pressure_difference/2013/global_cumul_impact_2013_all_layers_except_shipping_oceanpollution_invasives_slr.tif"))
+```
+
+```{r}
+reef_cum_2008<-raster::extract(cum08, reefs_moll2)
+reef_cum_2013<-raster::extract(cum13, reefs_moll2)
+```
+
+```{r}
+
+reef_cum_mean_2008<-lapply(reef_cum_2008, FUN=mean) %>% 
+  unlist() %>% 
+  as.data.frame() %>% 
+  rename(cum_2008 = ".")
+
+reef_cum_mean_2013<-lapply(reef_cum_2013, FUN=mean) %>% 
+  unlist() %>% 
+  as.data.frame() %>% 
+  rename(cum_2013 = ".")
+
+cum_diff<-cbind(reef_cum_mean_2008, reef_cum_mean_2013) %>% 
+  mutate(cum_diff = cum_2013 - cum_2008)
+```
+
+
+```{r}
+clim_2008<-raster(here("output_data/pressure_difference/climate_pressures_sum_2008.tif"))
+clim_2013<-raster(here("output_data/pressure_difference/climate_pressures_sum_2013.tif"))
+```
+
+```{r}
+reef_clim_2008<-raster::extract(clim_2008, reefs_moll2)
+reef_clim_2013<-raster::extract(clim_2013, reefs_moll2)
+```
+
+```{r}
+reef_clim_mean_2008<-lapply(reef_clim_2008, FUN=mean) %>% 
+  unlist() %>% 
+  as.data.frame() %>% 
+  rename(clim_2008 = ".")
+
+reef_clim_mean_2013<-lapply(reef_clim_2013, FUN=mean) %>% 
+  unlist() %>% 
+  as.data.frame() %>% 
+  rename(clim_2013 = ".")
+
+climate_diff<-cbind(reef_clim_mean_2008, reef_clim_mean_2013) %>% 
+  mutate(clim_diff = clim_2013 - clim_2008)
+```
+
+```{r}
+mar_2008<-raster(here("output_data/pressure_difference/marine_pressures_sum_2008.tif"))
+mar_2013<-raster(here("output_data/pressure_difference/marine_pressures_sum_2013.tif"))
+
+```
+
+```{r}
+reef_mar_2008<-raster::extract(mar_2008, reefs_moll2)
+reef_mar_2013<-raster::extract(mar_2013, reefs_moll2)
+```
+
+
+```{r}
+reef_mar_mean_2008<-lapply(reef_mar_2008, FUN=mean) %>% 
+  unlist() %>% 
+  as.data.frame() %>% 
+  rename(mar_2008 = ".")
+
+reef_mar_mean_2013<-lapply(reef_mar_2013, FUN=mean) %>% 
+  unlist() %>% 
+  as.data.frame() %>% 
+  rename(mar_2013 = ".")
+
+mar_diff<-cbind(reef_mar_mean_2008, reef_mar_mean_2013) %>% 
+  mutate(mar_diff = mar_2013 - mar_2008)
+```
+
+
+```{r}
+land_2008<-raster(here("output_data/pressure_difference/land_pressures_sum_2008.tif"))
+land_2013<-raster(here("output_data/pressure_difference/land_pressures_sum_2013.tif"))
+```
+
+```{r}
+reef_land_2008<-raster::extract(land_2008, reefs_moll2)
+reef_land_2013<-raster::extract(land_2013, reefs_moll2)
+```
+
+
+```{r}
+reef_land_mean_2008<-lapply(reef_land_2008, FUN=mean) %>% 
+  unlist() %>% 
+  as.data.frame() %>% 
+  rename(land_2008 = ".")
+
+reef_land_mean_2013<-lapply(reef_land_2013, FUN=mean) %>% 
+  unlist() %>% 
+  as.data.frame() %>% 
+  rename(land_2013 = ".")
+
+land_diff<-cbind(reef_land_mean_2008, reef_land_mean_2013) %>% 
+  mutate(land_diff = land_2013 - land_2008)
+```
+
+```{r}
+reef_id<-reefs_moll2 %>% 
+  as.data.frame() %>% 
+  dplyr::select(BCUID)
+```
+
+```{r}
+all_2008_2013<-cbind(reef_id, cum_diff, climate_diff, mar_diff, land_diff) %>% 
+  filter(!BCUID == 30) %>% 
+  mutate(prop_clim08 = clim_2008/cum_2008,
+         prop_clim13 = clim_2013/cum_2013,
+         prop_clim_diff = prop_clim13 - prop_clim08,
+         prop_mar08 = mar_2008/cum_2008,
+         prop_mar13 = mar_2013/cum_2013,
+         prop_mar_diff = prop_mar13 - prop_mar08,
+         prop_land08 = land_2008/cum_2008,
+         prop_land13 = land_2013/cum_2013,
+         prop_land_diff = prop_land13 - prop_land08)
+
+write.csv(all_2008_2013, here("output_data/results/all_reef_2008_2013_diff.csv"))
+
+```
+
+
+```{r}
+# Use list apply to calculate mean for each polygon
+reef_cum_mean_diff<-lapply(reef_cum_diff, FUN=mean) %>% 
+  unlist() %>% 
+  as.data.frame() %>% 
+  rename(cum_mean = ".")
+
+reef_clim_mean_diff<-lapply(reef_clim_diff, FUN=mean) %>% 
+  unlist() %>% 
+  as.data.frame() %>% 
+  rename(clim_mean = ".")
+
+reef_land_mean_diff<-lapply(reef_land_diff, FUN=mean) %>% 
+  unlist() %>% 
+  as.data.frame() %>% 
+  rename(land_mean = ".")
+
+reef_mar_mean_diff<-lapply(reef_mar_diff, FUN=mean) %>% 
+  unlist() %>% 
+  as.data.frame() %>% 
+  rename(mar_mean = ".")
+
+iso3_cum_mean_diff<-lapply(iso3_cum_diff, FUN=mean) %>% 
+  unlist() %>% 
+  as.data.frame() %>% 
+  rename(cum_mean = ".")
+
+iso3_clim_mean_diff<-lapply(iso3_clim_diff, FUN=mean) %>% 
+  unlist() %>% 
+  as.data.frame() %>% 
+  rename(clim_mean = ".")
+
+iso3_land_mean_diff<-lapply(iso3_land_diff, FUN=mean) %>% 
+  unlist() %>% 
+  as.data.frame() %>% 
+  rename(land_mean = ".")
+
+iso3_mar_mean_diff<-lapply(iso3_mar_diff, FUN=mean) %>% 
+  unlist() %>% 
+  as.data.frame() %>% 
+  rename(mar_mean = ".")
+```
+
+
+```{r}
+iso3_cum_2008<-raster::extract(cum08, reef_eez_moll_diss)
+iso3_cum_2013<-raster::extract(cum13, reef_eez_moll_diss)
+```
+
+```{r}
+
+iso3_cum_mean_2008<-lapply(iso3_cum_2008, FUN=mean) %>% 
+  unlist() %>% 
+  as.data.frame() %>% 
+  rename(cum_2008 = ".")
+
+iso3_cum_mean_2013<-lapply(iso3_cum_2013, FUN=mean) %>% 
+  unlist() %>% 
+  as.data.frame() %>% 
+  rename(cum_2013 = ".")
+
+iso3_cum_diff<-cbind(iso3_cum_mean_2008, iso3_cum_mean_2013) %>% 
+  mutate(cum_diff = cum_2013 - cum_2008)
+```
+
+
+
+```{r}
+iso3_clim_2008<-raster::extract(clim_2008, reef_eez_moll_diss)
+iso3_clim_2013<-raster::extract(clim_2013,reef_eez_moll_diss)
+```
+
+```{r}
+iso3_clim_mean_2008<-lapply(iso3_clim_2008, FUN=mean) %>% 
+  unlist() %>% 
+  as.data.frame() %>% 
+  rename(clim_2008 = ".")
+
+iso3_clim_mean_2013<-lapply(iso3_clim_2013, FUN=mean) %>% 
+  unlist() %>% 
+  as.data.frame() %>% 
+  rename(clim_2013 = ".")
+
+iso3_climate_diff<-cbind(iso3_clim_mean_2008, iso3_clim_mean_2013) %>% 
+  mutate(clim_diff = clim_2013 - clim_2008)
+```
+
+```{r}
+iso3_mar_2008<-raster::extract(mar_2008, reef_eez_moll_diss)
+iso3_mar_2013<-raster::extract(mar_2013, reef_eez_moll_diss)
+```
+
+
+```{r}
+iso3_mar_mean_2008<-lapply(iso3_mar_2008, FUN=mean) %>% 
+  unlist() %>% 
+  as.data.frame() %>% 
+  rename(mar_2008 = ".")
+
+iso3_mar_mean_2013<-lapply(iso3_mar_2013, FUN=mean) %>% 
+  unlist() %>% 
+  as.data.frame() %>% 
+  rename(mar_2013 = ".")
+
+iso3_mar_diff<-cbind(iso3_mar_mean_2008, iso3_mar_mean_2013) %>% 
+  mutate(mar_diff = mar_2013 - mar_2008)
+```
+
+
+```{r}
+iso3_land_2008<-raster::extract(land_2008, reef_eez_moll_diss)
+iso3_land_2013<-raster::extract(land_2013, reef_eez_moll_diss)
+```
+
+
+```{r}
+iso3_land_mean_2008<-lapply(iso3_land_2008, FUN=mean) %>% 
+  unlist() %>% 
+  as.data.frame() %>% 
+  rename(land_2008 = ".")
+
+iso3_land_mean_2013<-lapply(iso3_land_2013, FUN=mean) %>% 
+  unlist() %>% 
+  as.data.frame() %>% 
+  rename(land_2013 = ".")
+
+iso3_land_diff<-cbind(iso3_land_mean_2008, iso3_land_mean_2013) %>% 
+  mutate(land_diff = land_2013 - land_2008)
+```
+
+```{r}
+iso3<-reef_eez_moll_diss %>% 
+  as.data.frame() %>% 
+  dplyr::select(ISO_Ter1)
+```
+
+```{r}
+iso3_all_2008_2013<-cbind(iso3, iso3_cum_diff, iso3_climate_diff, iso3_mar_diff, iso3_land_diff) %>% 
+  filter(!ISO_Ter1 == "MDG") %>% 
+  mutate(prop_clim08 = clim_2008/cum_2008,
+         prop_clim13 = clim_2013/cum_2013,
+         prop_clim_diff = prop_clim13 - prop_clim08,
+         prop_mar08 = mar_2008/cum_2008,
+         prop_mar13 = mar_2013/cum_2013,
+         prop_mar_diff = prop_mar13 - prop_mar08,
+         prop_land08 = land_2008/cum_2008,
+         prop_land13 = land_2013/cum_2013,
+         prop_land_diff = prop_land13 - prop_land08)
+
+write.csv(iso3_all_2008_2013, here("output_data/results/all_iso3_2008_2013_diff.csv"))
+
+```
+
+
+
+```{r}
+
+reef_threats_diff<-cbind(reef_id,reef_cum_mean_diff, reef_clim_mean_diff, reef_land_mean_diff, reef_mar_mean_diff)
+
+reef_threats_diff_shp<-left_join(reefs_moll2, reef_threats_diff, by = "BCUID") 
+
+st_write(reef_threats_diff_shp, here("output_data/results/reef_difference.shp"), delete_layer = T)
+```
+
+
+```{r}
+
+iso3_reef_threats_diff<-cbind(iso3,iso3_cum_mean_diff, iso3_clim_mean_diff, iso3_land_mean_diff, iso3_mar_mean_diff)
+
+iso3_reef_threats_diff_shp<-left_join(reef_eez_moll_diss, iso3_reef_threats_diff, by = "ISO_Ter1")
+
+st_write(iso3_reef_threats_diff_shp, here("output_data/results/iso3_reef_difference.shp"), delete_layer = T)
+
+```
+
+
