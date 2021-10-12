@@ -2,4 +2,6 @@
 .Rhistory
 .RData
 .Ruserdata
-raw_data
+raw_data/pressures
+raw_data/pressure_difference
+output_data
