@@ -10,15 +10,15 @@ There are two main data folders: raw_data and output_data. Many of the data used
 2. scripts
 There are XXX scripts that should be executed in sequential order as follows:
 
-Download_pressure.Rmd - this script downloads the data layers for calculating 2013 cumulative impact (global, climate, land, marine) from the KNB repository. The data is based on publication the from Halpern et al. 2015.
+1_Download_pressure.Rmd - this script downloads the data layers for calculating 2013 cumulative impact (global, climate, land, marine) from the KNB repository. The data is based on publication the from Halpern et al. 2015.
 
-Change_in_pressure.Rmd - this script downloads the data layers for calculating the change in cumulative impact (global, climate, land, marine) from the KNB repository. The data is based on the publication from Halpern et al. 2015. 
+2_Change_in_pressure.Rmd - this script downloads the data layers for calculating the change in cumulative impact (global, climate, land, marine) from the KNB repository. The data is based on the publication from Halpern et al. 2015. 
 
-Reef_threats.Rmd - this script uses spatial data on the 50 bioclimatic units (BCUs) that are less-exposed to climate change and Exclusive Economic Zones to calculate the level of cumulative in pact (in 2013 and between 2008 and 2013) within BCUs and countries responsible for their management.
+3_Reef_threats.Rmd - this script uses spatial data on the 50 bioclimatic units (BCUs) that are less-exposed to climate change and Exclusive Economic Zones to calculate the level of cumulative in pact (in 2013 and between 2008 and 2013) within BCUs and countries responsible for their management.
 
-Reefs_WDPA.Rmd - this script calculates the amount of 50 reefs and coral reefs (based on WCMC coral reef layer) that are protected based on the World Database on Protected Areas.
+4_Management_index.Rmd - this script calculates the management indices (climate, marine, land) for each country based on common metrics of conservation potential/commitment. 
 
-Management_index.Rmd - this script calculates the management indices (climate, marine, land) for each country based on common metrics of conservation potential/commitment. 
+5_Results.Rmd - this script generates the results in the manuscript as well as other summary statistics based on the data created in the above scripts.
 
 4. figures
 
