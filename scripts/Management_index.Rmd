@@ -1,0 +1,799 @@
+---
+title: "Untitled"
+author: "Caitie"
+date: "11/08/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(sf)
+library(countrycode)
+library(Hmisc)
+library(corrplot)
+library(here)
+
+options(scipen = 999)
+```
+
+This code quantifies a conservation effectiveness index for combating climate, marine and land-based threats across climate refugia reefs.
+
+# Countries of interest
+
+```{r}
+coi<-countrycode::countrycode(c("Australia", "Bangladesh", "Bahamas", "Brazil", "Cuba", "Djibouti", "Dominican Republic", "Egypt", "Eritrea", "Fiji", "Haiti", "Indonesia", "India", "Kenya", "Sri Lanka", "Myanmar (Burma)", "Malaysia", "Philippines", "Papua New Guinea", "French Polynesia", "Saudi Arabia", "Sudan", "Singapore", "Solomon Islands", "Somalia", "Timor-Leste", "Tanzania", "Yemen"), "country.name", "iso3c")
+
+cont<-read.csv(here("raw_data/Management_data/Countries_by_continent.csv")) %>% 
+  rename(iso3 = ISO3)
+
+sub_cont<-cont %>% 
+  filter(iso3 %in% coi)
+```
+
+
+# Climate
+
+The climate pressure conservation index is composed of:
+1. Ecosystem-based adaptation strategies
+2. Signatory to Paris Climate Agreement
+3. Look into Climate Action Tracker
+
+## EbA
+
+Number of EbA initiatives 
+
+```{r}
+eba<-read.csv(here("raw_data/Management_data/50Reefs_EBA.csv")) %>% 
+  mutate(iso3 = countrycode(Country, 'country.name', 'iso3c'))
+
+n_eba<- eba %>% 
+   mutate(n_eba = (Num_EbA - min(eba$Num_EbA ))/(max(eba$Num_EbA ) - min(eba$Num_EbA ))) %>% 
+  dplyr::select(iso3, n_eba)
+```
+
+## Paris Climate - NOT INCLUDED
+All countries have an NDC so not too informative - don't include
+
+```{r}
+#indc<-ac_metrics<-read.csv(here("raw_data/Management_data/Adaptive_Capacity.csv")) %>% 
+#  rename(Country = CntryLink) %>% 
+#  mutate(iso3 = countrycode(Country, "country.name", "iso3c")) %>% 
+#  filter(iso3 %in% coi) %>% 
+#  dplyr::select(iso3, INDC)
+```
+
+# NDC review from Val Hagger
+
+I have been looking at mangrove holding nations (107 countries) Nationally Determined Contributions to determine the extent to which they mention coastal ecosystems or mangroves in accounting, mitigation and/or adaptation, and therefore are likely to conserve/restore mangroves in their policy commitments under the Paris Agreement.However this is relevant to all coastal/marine ecosystems.
+
+```{r}
+ndc<-read.csv(here("raw_data/Management_data/Literature_review_NDCs.csv")) %>% 
+  filter(ISO3C %in% coi) %>% 
+  dplyr::select(ISO3C, NDC_strategy, NDC_mangroves_in_accounting_or_IPCC2013, NDC_mangroves_mitigation, NDC_mangroves_adaptation) %>% 
+  pivot_longer(., cols = c("NDC_strategy", "NDC_mangroves_in_accounting_or_IPCC2013", "NDC_mangroves_mitigation", "NDC_mangroves_adaptation"), names_to = "type", values_to = "value") %>% 
+  group_by(ISO3C) %>% 
+  summarise(ndc_bin = sum(value, na.rm = T))
+
+ndc<-ndc %>% 
+  mutate(n_ndc = (ndc_bin - min(ndc$ndc_bin))/(max(ndc$ndc_bin) - min(ndc$ndc_bin))) %>% 
+  rename(iso3 = ISO3C)
+```
+
+If this doesn't work out can also look into NDC ambition metrics
+https://iopscience.iop.org/article/10.1088/1748-9326/ab63e0/meta#erlab63e0app1
+https://www.nature.com/articles/s41467-018-07223-9?fbclid=IwAR3IBcSOoVk6rynAMfYHqoZ115GyYtr255QKLuOau5fqGbQdKNfdB2thAOg
+
+## ND Gain adaptive capacity - NOT INCLUDED
+
+This metric does not match the other metrics well
+```{r}
+#nd_gain<-read.csv(here("raw_data/Management_data/ND_Gain_capacity.csv")) %>% 
+#  pivot_longer(., cols = starts_with("X"), names_to = "Year", values_to = "capacity") %>% 
+#  mutate(Year = as.numeric(gsub("X", "", Year))) %>% 
+#  filter(Year == 2018,
+#         ISO3 %in% coi) %>% 
+#  dplyr::select(ISO3, capacity) %>% 
+#  rename(iso3 = ISO3)
+
+```
+
+# Disaster preparedness - NOT INCLUDED
+
+Disaster risk reduction progress score is an average of self-assessment scores, ranging from 1 to 5, submitted by countries under Priority 1 of the Hyogo Framework National Progress Reports. The Hyogo Framework is a global blueprint for disaster risk reduction efforts that was adopted by 168 countries in 2005. Assessments of "Priority 1" include four indicators that reflect the degree to which countries have prioritized disaster risk reduction and the strengthening of relevant institutions.
+
+Too many countries missing
+
+```{r}
+#drr<-read.csv(here("raw_data/Management_data/Disaster_risk_reduction.csv")) %>% 
+#  rename(iso3 = Country.Code) %>% 
+#  filter(iso3 %in% coi)
+```
+
+# Ease of doing business - NOT INCLUDED
+
+2 countries missing - doesn't really make sense to include
+
+```{r}
+#econ<-read.csv(here("raw_data/Management_data/economic.csv")) %>% 
+#  filter(ISO3 %in% coi) %>% 
+#  dplyr::select(ISO3, X2018) %>% 
+#  pivot_longer(., col = X2018, names_to = "Year", values_to = "Business")
+```
+
+Gapfill Cuba and French Polynesia
+
+```{r}
+#econ1<-read.csv(here("raw_data/Management_data/economic.csv")) %>% 
+#  dplyr::select(ISO3, X2018) %>% 
+#  pivot_longer(., col = X2018, names_to = "Year", values_to = "Business")
+
+#Caribbean
+#caribbean<-cont %>% 
+#  filter(Region1 == "Caribbean")
+
+#car_econ<-econ1 %>% 
+#  filter(ISO3 %in% caribbean$iso3)
+
+#cub_econ<-mean(car_econ$Business, na.rm = T)
+
+#	Polynesia
+#polynesia<-cont %>% 
+#  filter(Region1 == "Polynesia")
+
+#poly_econ<-econ1 %>% 
+#  filter(ISO3 %in% polynesia$iso3)
+
+#pyf_econ<-mean(poly_econ$Business, na.rm = T)
+```
+
+
+```{r}
+#pyf<-data.frame(ISO3 = "PYF", Year = "X2018", Business = NA)
+#econ2 <- econ %>% 
+#  rbind(., pyf) %>% 
+#  mutate(Business = ifelse(ISO3 == "CUB", cub_econ, 
+ #                          ifelse(ISO3 == "PYF", pyf_econ, as.numeric(Business))))
+
+#n_econ<-econ2 %>% 
+#    mutate(n_Business =(Business - min(econ2$Business))/(max(econ2$Business) - min(econ2$Business)))
+  
+```
+
+# Innovation - NOT INCLUDED
+Gap fill Bahamas
+
+```{r}
+#bhs_cont<-cont %>% 
+#  filter(Region1 == "Caribbean")
+
+#car_capacity<-left_join(nd_gain, bhs_cont, by = "iso3") %>% 
+#  filter(Region1 == "Caribbean")
+
+#bhs_capacity<-mean(car_capacity$capacity, na.rm = T)
+
+#nd_gain<- nd_gain %>% 
+#  mutate(capacity = ifelse(iso3 == "BHS", bhs_capacity, as.numeric(capacity)))
+```
+
+```{r}
+#n_nd_gain<-nd_gain %>% 
+#  mutate(n_capacity = (capacity - min(nd_gain$capacity))/(max(nd_gain$capacity) - min(nd_gain$capacity)))
+```
+
+# Renewable Energy Demand NDC - DON'T INCLUDE
+
+Source is Munoz Cabre et al 2018 Renewable Energy: The trillion dollar opportunity for chinese overseas investment
+
+Don't include because too many missing countries/0 values.
+
+```{r}
+#renew<-read.csv(here("raw_data/Management_data/Country_Renewable_Energy_NDC.csv")) %>% 
+#  filter(!Country == "") %>% 
+#  mutate(iso3 = countrycode(Country, "country.name", "iso3c")) %>% 
+#  filter(iso3 %in% coi)
+```
+Gap fill missing countries - Australia and French Polynesia
+
+```{r}
+#renew2<-read.csv(here("raw_data/Management_data/Country_Renewable_Energy_NDC.csv")) %>% 
+#  filter(!Country == "") %>% 
+#  mutate(iso3 = countrycode(Country, "country.name", "iso3c"),
+#         iso3 = ifelse(Country == "Micronesia", "FSM",
+                       ifelse(Country == "Sao Tom\x8e and Principe", "STP", #as.character(iso3))))
+
+#renew_done<-left_join(cont, renew2, by = "iso3")
+
+#test<-renew_done %>% 
+#  filter(iso3 %in% coi)
+
+#aus_nz<- renew_done %>% 
+#  filter(Region1 == "Australia and New Zealand") %>% 
+#  mutate(avg_USD = mean(Total.USD, na.rm = T),
+         avg_MW = mean(Total.MW, na.rm = T))
+
+#polynesia<-renew_done %>% 
+#  filter(Region1 == "Polynesia") %>% 
+#  mutate(avg_USD = mean(Total.USD, na.rm = T),
+#         avg_MW = mean(Total.MW, na.rm = T))
+
+
+
+#renew_done<- renew_done %>% 
+#  mutate(Total.USD2 = ifelse(is.na(Total.USD) == T & iso3 == "AUS", #unique(aus_nz$avg_USD),
+#                             ifelse(is.na(Total.USD) == T & iso3 == "PYF", #unique(polynesia$avg_USD), as.numeric(Total.USD))),
+#         Total.MW2 = ifelse(is.na(Total.MW) == T & iso3 == "AUS", unique(aus_nz$avg_MW),
+#                             ifelse(is.na(Total.MW) == T & iso3 == "PYF", #unique(polynesia$avg_MW), as.numeric(Total.MW)))) %>% 
+#  filter(iso3 %in% coi)
+
+#n_renew<-renew_done %>% 
+#    mutate(n_USD = (Total.USD2 - min(renew_done$Total.USD2))/(max(renew_done$Total.USD2) #- min(renew_done$Total.USD2)),
+#           n_MW = (Total.MW2 - min(renew_done$Total.MW2))/(max(renew_done$Total.MW2) - #min(renew_done$Total.MW2))) %>% 
+#  dplyr::select(iso3, n_USD, n_MW)
+```
+
+# GHG emissions
+Source: file:///Users/uqckuemp/Dropbox/50_reefs_post_doc/References/Co2_emissions_by_country.pdf
+
+Try change in CO2 per GDP
+```{r}
+ghg_emissions<-read.csv(here("raw_data/Management_data/GHG_emissions_by_country.csv")) %>% 
+  mutate(iso3 = countrycode(Country, "country.name", "iso3c")) %>% 
+  filter(Year %in% c(2017, 2005),
+         iso3 %in% coi) %>% 
+  pivot_wider(., names_from = Year, values_from = c("Mt.C02.yr", "tCO2.cap.yr","tCO2.kUSD.yr","Population"))
+
+ghg_GDP<-ghg_emissions %>% 
+  dplyr::select(iso3, tCO2.kUSD.yr_2017, tCO2.kUSD.yr_2005) %>% 
+  mutate(prop_change = (as.numeric(tCO2.kUSD.yr_2005) - as.numeric(tCO2.kUSD.yr_2017))/as.numeric(tCO2.kUSD.yr_2017))
+
+ghg_GDP<-ghg_GDP %>% 
+    mutate(n_ghg_gdp = (prop_change - min(ghg_GDP$prop_change))/(max(ghg_GDP$prop_change) - min(ghg_GDP$prop_change))) #%>% 
+  #dplyr::select(iso3, n_ghg_gdp)
+
+ghg_cap<-ghg_emissions %>% 
+  dplyr::select(iso3, tCO2.cap.yr_2017, tCO2.cap.yr_2005) %>% 
+  mutate(prop_change = (as.numeric(tCO2.cap.yr_2005) - as.numeric(tCO2.cap.yr_2017))/as.numeric(tCO2.cap.yr_2017))
+
+ghg_cap<-ghg_cap %>% 
+  mutate(n_ghg_cap = (prop_change - min(ghg_cap$prop_change))/(max(ghg_cap$prop_change) - min(ghg_cap$prop_change))) %>% 
+  dplyr::select(iso3, n_ghg_cap)
+```
+
+# Coral restoration - NOT INCLUDED
+
+1	Accelerate reef recovery post-disturbance
+2	Reestablish a self-sustaining, functioning reef ecosystem
+3	Mitigate anticipated coral loss prior to a known disturbance
+4	Reduce population declines and ecosystem degradation
+5	Provide alternative, sustainable livelihood opportunities
+6	Promote coral reef conservation stewardship
+7	Scientific Research
+8	Ecological engineering
+
+```{r}
+#coral_rest<-read.csv(here("raw_data/Management_data/Database_BostromEinarsson_2019.csv")) %>% 
+#  dplyr::select(ID, Year, Country, Location, Disturbance, Objective) %>% 
+#  filter(!Objective == 7) %>% 
+#  mutate(iso3 = countrycode(Country, "country.name", "iso3c")) %>% 
+#  filter(iso3 %in% coi) %>% 
+#  group_by(Country) %>% 
+#  add_count(.) %>% 
+#  dplyr::select(iso3, n) %>% 
+#  unique(.)
+```
+
+
+# Climate metric
+```{r}
+climate_metric<- full_join(n_eba, ghg_GDP, by = c("iso3")) %>% 
+  full_join(., ghg_cap, by = "iso3") %>% 
+  full_join(., ndc, by = "iso3") %>% 
+  filter(!iso3 == "MDG")
+  #mutate(climate = (n_eba + n_ghg_gdp)/2)
+```
+
+```{r}
+sub_clim1<-climate_metric %>% 
+  ungroup() %>% 
+  dplyr::select(-iso3)
+  
+clim_corr1<-rcorr(as.matrix(sub_clim1))
+clim_corr1
+```
+
+Test correlation - no metrics are significantly correlated so keep them
+```{r}
+sub_clim<-climate_metric %>% 
+  ungroup() %>% 
+  dplyr::select(n_eba, n_ghg_gdp, n_ghg_cap, n_ndc)
+  
+clim_corr<-rcorr(as.matrix(sub_clim))
+clim_corr
+```
+
+```{r}
+clim_corrplot<-corrplot(clim_corr$r)
+
+clim_corrplot
+```
+
+Take average of metrics to get final climate metric
+```{r}
+climate_metric<-climate_metric %>% 
+  mutate(climate = (n_eba + n_ghg_gdp+n_ghg_cap+n_ndc)/4)
+  
+```
+
+# Marine
+
+The marine pressure conservation index is composed of:
+1. Areal proportion of strict MPAs (IUCN I-IV) within reefs in each countries EEZ
+2. Fisheries management effectiveness score
+3. Signatory to Our Ocean Conference (binary)
+4. Member of ICRI (binary)
+5. Funding for coral reef conservation
+6. Coral reef area within each EEZ/total % of coral reefs that are climate refugia??
+
+## MPAs
+
+```{r}
+mpa<-st_read(here("raw_data/Management_data/EEZ_WCMC_WDPA.shp")) %>% 
+  as.data.frame() %>% 
+  dplyr::select(-geometry) %>% 
+  rename(iso3 = ISO_TER1) %>% 
+  group_by(iso3, area_km2) %>% 
+  summarise(total_reef = sum(WCMC_km2, na.rm = T),
+    total_pa = sum(WDPA_km2, na.rm = T)) %>% 
+  mutate(prop_pa_eez = total_pa/area_km2,
+         prop_pa_reefs = total_pa/total_reef) %>% 
+  filter(iso3 %in% coi) 
+
+n_mpa<- mpa %>% 
+  mutate(n_prop_pa_reefs = (prop_pa_reefs - min(mpa$prop_pa_reefs))/(max(mpa$prop_pa_reefs) - min(mpa$prop_pa_reefs))) %>% 
+  dplyr::select(iso3, n_prop_pa_reefs)
+```
+
+## Fisheries management
+
+```{r}
+me<-read.csv(here("raw_data/Management_data/Fisheries_management_data.csv")) %>% 
+  mutate(iso3 = countrycode(ME_Country, "country.name", "iso3c")) %>% 
+  filter(iso3 %in% coi,
+         metric == "avg_mang") %>% 
+  group_by(iso3) %>% 
+  summarise(value_adj = mean(value, na.rm = T))
+```
+
+Gap fill for missing countries
+
+```{r}
+fish2<-read.csv(here("raw_data/Management_data/Fisheries_management_data.csv")) %>% 
+  mutate(iso3 = countrycode(ME_Country, "country.name", "iso3c")) %>% 
+  filter(metric == "avg_mang") %>% 
+  group_by(iso3) %>% 
+  summarise(value_adj = mean(value, na.rm = T))
+
+fish_done<-left_join(cont, fish2, by = "iso3")
+
+test<-fish_done %>% 
+  filter(iso3 %in% coi)
+
+southeast_asia<- fish_done %>% 
+  filter(Region1 == "South-eastern Asia") %>% 
+  mutate(avg = mean(value_adj, na.rm = T))
+
+#asia<- fish_done %>% 
+#  filter(Continent == "Asia") %>% 
+#  mutate(avg = mean(value_adj, na.rm = T))
+
+fish_done<- fish_done %>% 
+  mutate(avg_manage = ifelse(is.na(value_adj) == T, unique(southeast_asia$avg), as.numeric(value_adj))) %>% 
+  filter(iso3 %in% coi)
+
+n_me<-fish_done %>% 
+    mutate(n_avg_manage = (avg_manage - min(fish_done$avg_manage))/(max(fish_done$avg_manage) - min(fish_done$avg_manage))) %>% 
+  dplyr::select(iso3, n_avg_manage)
+
+
+```
+
+## Signatory/memberships and coral reef funding
+
+```{r}
+ac_metrics<-read.csv(here("raw_data/Management_data/Adaptive_Capacity.csv")) %>% 
+  rename(Country = CntryLink) %>% 
+  mutate(iso3 = countrycode(Country, "country.name", "iso3c")) %>% 
+  filter(iso3 %in% coi) %>% 
+  dplyr::select(iso3, OOCOMM, ICRI, fund)
+```
+## Coral funding
+
+UNEP
+ 
+```{r}
+coral_fund<-read.csv(here("raw_data/Management_data/funding_collated-coral-2020-08-21.csv")) %>% 
+  filter(Ecosystem %in% c("Coral Reef,Mangrove,Seagrass", "Coral Reef,Mangrove", "Coral Reef,Seagrass", "Coral Reef"),
+         End.date > 2005) %>% 
+  dplyr::select(Country, Ecosystem, Total.project.cost) %>% 
+  mutate(funds = as.numeric(gsub("USD ", "", Total.project.cost)),
+         iso3 = countrycode(Country, "country.name", "iso3c")) 
+
+
+multi_funds<-coral_fund %>% 
+  filter(is.na(iso3) == T)
+
+s <- strsplit(multi_funds$Country, split = ",")
+test<-data.frame(V1 = rep(multi_funds$funds, sapply(s, length)), V2 = unlist(s))
+
+coral_fund<-coral_fund%>% 
+  filter(!is.na(iso3) == T,
+         iso3 %in% coi) %>% 
+  dplyr::select(iso3, funds)
+
+coral_fund2<- test %>% 
+  group_by(V1)%>%
+  mutate(Orders=n()) %>% 
+  mutate(funds = V1/Orders) %>% 
+  rename(Total.funds = V1,
+         Country = V2) %>% 
+  mutate(iso3 = countrycode(Country, "country.name", "iso3c")) %>% 
+  ungroup() %>% 
+  dplyr::select(iso3, funds) %>% 
+  filter(iso3 %in% coi)
+
+all_coral_funds<-rbind(coral_fund, coral_fund2) %>% 
+  group_by(iso3) %>% 
+  summarise(total_funds = sum(funds, na.rm = T)) %>% 
+  mutate(total_funds = ifelse(is.na(total_funds) == T, 0, as.numeric(total_funds)))
+
+
+```
+ 
+Gap fill missing countries
+
+Bangladesh, Eritrea, French Polynesia, Singapore
+
+```{r}
+funds_done<-left_join(cont, all_coral_funds, by = "iso3")
+
+test<-funds_done %>% 
+  filter(iso3 %in% coi)
+
+southeast_asia<- funds_done %>% 
+  filter(Region1 == "South-eastern Asia") %>% 
+  mutate(total_funds = mean(total_funds, na.rm = T))
+
+eastern_africa<-funds_done %>% 
+  filter(Region1 == "Eastern Africa") %>% 
+  mutate(total_funds = mean(total_funds, na.rm = T))
+
+southern_asia<-funds_done %>% 
+  filter(Region1 == "Southern Asia") %>% 
+  mutate(total_funds = mean(total_funds, na.rm = T))
+
+
+# There is no data for Polynesia so we use the average for Oceania
+oceania<-funds_done %>% 
+  filter(Continent == "Oceania") %>% 
+  mutate(total_funds = mean(total_funds, na.rm = T))
+
+#asia<- fish_done %>% 
+#  filter(Continent == "Asia") %>% 
+#  mutate(avg = mean(value_adj, na.rm = T))
+
+funds_done2<- funds_done %>% 
+  mutate(total_funds2 = ifelse(is.na(total_funds) == T & Region1 == "South-eastern Asia", unique(southeast_asia$total_funds),
+        ifelse(is.na(total_funds) == T & Region1 == "Eastern Africa", unique(eastern_africa$total_funds),
+         ifelse(is.na(total_funds) == T & Region1 == "Southern Asia", unique(southern_asia$total_funds),
+         ifelse(is.na(total_funds) == T & Region1 == "Polynesia", unique(oceania$total_funds), as.numeric(total_funds)))))) %>% 
+  filter(iso3 %in% coi)
+```
+
+ 
+```{r}
+n_coral_funds<-funds_done2 %>% 
+  mutate(n_coral_funds = (total_funds2 - min(funds_done2$total_funds2))/(max(funds_done2$total_funds2) - min(funds_done2$total_funds2))) %>% 
+  dplyr::select(iso3, n_coral_funds)
+```
+
+## MPA management - Gill Data - DON"T INCLUDE MISSING TOO MANY COUNTRIES
+
+Scale is 1 to 3, 1 is worse, 3 is better.
+
+The data is missing 13 countries
+
+```{r}
+#gill_me_dat<-read.csv(here("raw_data/Management_data/Gill_ME_data.csv")) %>% 
+#  dplyr::select(ISO3, Enforcement, Monitoring, Mgmt.plan, Staff.capacity, #Acceptable.budget, Boundaries, MPA.Regulations, Non.state.mgmt, Inc.dec..making, #Leg..gazetted) %>% 
+#  group_by(ISO3) %>% 
+#  summarise_all(., mean, na.rm = T)
+
+#sub_gill<-gill_me_dat %>% 
+#  filter(ISO3 %in% coi)
+```
+
+Here we are missing 19 countries
+```{r}
+#gill_fish_dat<-read.csv(here("raw_data/Management_data/Gill_fish_biomass_response_data.cs#v")) %>% 
+#  dplyr::select(ISO3, LnRR_biom, No_take, Shore_Dist..km.) %>% 
+#  group_by(ISO3) %>% 
+#  summarise_all(., mean, na.rm = T)
+
+#sub_gill_fish<-gill_fish_dat %>% 
+#  filter(ISO3 %in% coi)
+```
+
+## Marine metric
+
+```{r}
+marine_metric<-full_join(n_mpa, n_me, by = "iso3") %>% 
+  full_join(., ac_metrics, by = "iso3") %>% 
+  full_join(.,n_coral_funds, by = "iso3") %>% 
+  #dplyr::select(-CGI) %>% 
+  mutate(n_prop_pa_reefs = ifelse(is.na(n_prop_pa_reefs) == T, 0, as.numeric(n_prop_pa_reefs)),
+         ICRI = ifelse(iso3 == "PYF", 1, as.numeric(ICRI)),
+          OOCOMM = ifelse(iso3 == "PYF",1,as.numeric(OOCOMM)),
+          n_coral_funds = ifelse(is.na(n_coral_funds) == T, 0, as.numeric(n_coral_funds)),
+          marine = (n_prop_pa_reefs+n_avg_manage + ICRI + n_coral_funds)/4) %>% 
+  filter(!iso3 == "MDG")
+```
+
+Test correlation
+ICRI and n_coral_funds are borderline significance - but we keep all for now
+
+```{r}
+sub_mar1<-marine_metric %>% 
+  ungroup() %>% 
+  dplyr::select(-iso3, -marine)
+
+mar_corr1<-rcorr(as.matrix(sub_mar1))
+mar_corr1
+```
+
+```{r}
+sub_mar<-marine_metric %>% 
+  ungroup() %>% 
+  dplyr::select(n_prop_pa_reefs, n_avg_manage, ICRI, n_coral_funds)
+mar_corr <- rcorr(as.matrix(sub_mar))
+mar_corr
+```
+
+```{r}
+mar_corrplot<-corrplot(mar_corr$r)
+
+mar_corrplot
+```
+
+# Land
+
+The land pressure conservation index is composed of:
+1. Average number of ICM policies across international, national and sub-national jurisdictions multiplied by the 'impact factor'
+2. Areal proportion of strict PAs (IUCN I-IV) within each country
+3. Conservation spending (deficit?)
+
+## ICM
+```{r}
+icm_old<-read.csv(here("raw_data/Management_data/ICM_50reefs_data.csv")) %>% 
+  mutate(Subnational_ICM = replace_na(Subnational_ICM, 0),
+         iso3 = countrycode(Country, "country.name", "iso3c"))
+
+icm_update<-read.csv(here("raw_data/Management_data/ICM_Review_2021.csv")) %>% 
+  filter(!Remove. == "Y",
+         !Name == "") %>% 
+  dplyr::select(Country, Multinational., National., Sub.national.) %>% 
+  mutate(iso3 = countrycode(Country, "country.name", "iso3c")) %>% 
+  rename(Multi_nation_ICM = Multinational.,
+         Nationwide_ICM = National.,
+         Subnational_ICM = Sub.national.) %>% 
+  mutate(Multi_nation_ICM = as.numeric(Multi_nation_ICM),
+         Nationwide_ICM = as.numeric(Nationwide_ICM),
+         Subnational_ICM = as.numeric(Subnational_ICM),
+         Multi_nation_ICM = replace_na(Multi_nation_ICM, 0),
+         Nationwide_ICM = replace_na(Nationwide_ICM, 0),
+         Subnational_ICM = replace_na(Subnational_ICM, 0)) %>% 
+  group_by(Country, iso3) %>% 
+  summarise_all(., sum)
+
+icm<-full_join(icm_old, icm_update, by = c("Country", "iso3")) %>% 
+  mutate(Multi_nation_ICM = Multi_nation_ICM.x + Multi_nation_ICM.y,
+         Nationwide_ICM = Nationwide_ICM.x + Nationwide_ICM.y,
+         Subnational_ICM = Subnational_ICM.x + Subnational_ICM.y) %>% 
+  dplyr::select(Country, iso3, Multi_nation_ICM, Nationwide_ICM, Subnational_ICM)
+
+max_multi<-max(icm$Multi_nation_ICM)
+max_nation<-max(icm$Nationwide_ICM)
+max_sub<-max(icm$Subnational_ICM)
+
+min_multi<-min(icm$Multi_nation_ICM)
+min_nation<-min(icm$Nationwide_ICM)
+min_sub<-min(icm$Subnational_ICM)
+
+icm<- icm %>% 
+  mutate(icm_metric = ((Multi_nation_ICM/max_multi) + (Nationwide_ICM/max_nation) + (Subnational_ICM/max_sub))/3,
+         n_multi = (Multi_nation_ICM - min_multi)/(max_multi - min_multi),
+         n_nation = (Nationwide_ICM - min_nation)/(max_nation - min_nation),
+         n_sub = (Subnational_ICM - min_sub)/(max_sub - min_sub),
+         n_icm = (n_multi + n_nation + n_sub)/3)
+
+n_icm<-icm %>%  
+  mutate(n_icm = (icm_metric - min(icm$icm_metric))/(max(icm$icm_metric) - min(icm$icm_metric))) %>% 
+  dplyr::select(iso3, n_icm)
+```
+## Protected areas
+```{r}
+pa<-st_read(here("raw_data/Management_data/50reefs_countries_WDPA.shp")) %>% 
+  as.data.frame() %>% 
+  dplyr::select(-geometry)
+
+total_pa<-pa %>% 
+  group_by(ISO3, c_areakm2) %>% 
+  summarise(total_pa_km2 = sum(pa_km2, na.rm = T)) %>% 
+  mutate(prop_pa = total_pa_km2/c_areakm2)
+
+n_total_pa<-total_pa %>% 
+  mutate(n_prop_pa = (prop_pa - min(total_pa$prop_pa))/(max(total_pa$prop_pa) - min(total_pa$prop_pa)))
+
+strict_pa<-pa %>% 
+  filter(IUCN_CAT %in% c("Ia", "Ib", "II", "III", "IV")) %>% 
+  group_by(ISO3, c_areakm2) %>% 
+  summarise(strict_pa_km2 = sum(pa_km2, na.rm = T)) %>% 
+  mutate(prop_strict_pa = strict_pa_km2/c_areakm2) 
+
+n_strict_pa<-strict_pa %>% 
+  mutate(n_prop_strict_pa = (prop_strict_pa - min(strict_pa$prop_strict_pa))/(max(strict_pa$prop_strict_pa)-min(strict_pa$prop_strict_pa))) %>% 
+  rename(iso3 = ISO3) %>% 
+  dplyr::select(iso3, n_prop_strict_pa) 
+```
+
+## Conservation spending
+
+Data is from Waldron et al. 2013 PNAS
+
+```{r}
+spend<-read.csv(here("raw_data/Management_data/Waldron_cons_spending.csv"), skip = 2) %>% 
+  dplyr::select(COUNTRY, Total.aid.funding.., Total.Domestic.funding, Trust.funds.and.debt.swaps, Other) %>% 
+  mutate(Aid_funds = as.numeric(as.character(Total.aid.funding..)),
+         Domestic_funds = as.numeric(as.character(Total.Domestic.funding)),
+         Trust_swaps = as.numeric(as.character(Trust.funds.and.debt.swaps)),
+         Other = as.numeric(as.character(Other))) %>% 
+  mutate(total_spend = Aid_funds + Domestic_funds + Trust_swaps + Other,
+         iso3 = countrycode::countrycode(COUNTRY, "country.name", "iso3c")) %>% 
+  filter(iso3 %in% coi)
+  
+```
+Gap fill French Polynesia
+
+```{r}
+spend_done<-left_join(cont, spend, by = "iso3")
+
+test<-spend_done %>% 
+  filter(iso3 %in% coi)
+
+#Polynesia has no data so used oceania
+oceania<-spend_done %>% 
+  filter(Continent == "Oceania") %>% 
+  mutate(total_spend = mean(total_spend, na.rm = T))
+
+#asia<- fish_done %>% 
+#  filter(Continent == "Asia") %>% 
+#  mutate(avg = mean(value_adj, na.rm = T))
+
+spend_done2<- spend_done %>% 
+  mutate(total_spend2 = ifelse(is.na(total_spend) == T & Region1 == "Polynesia", unique(oceania$total_spend), as.numeric(total_spend))) %>% 
+  filter(iso3 %in% coi)
+```
+
+
+```{r}
+n_spend <- spend_done2 %>% 
+  mutate(n_total_spend = (total_spend2 - min(spend_done2$total_spend2))/(max(spend_done2$total_spend2) - min(spend_done2$total_spend2))) %>% 
+  dplyr::select(iso3, n_total_spend)
+```
+
+## Coastal Governance Index - NOT INCLUDED
+Not enough countries have data
+```{r}
+#cgi<-read.csv(here("raw_data/Management_data/Adaptive_Capacity.csv")) %>% 
+#  rename(Country = CntryLink) %>% 
+#  mutate(iso3 = countrycode(Country, "country.name", "iso3c")) %>% 
+#  filter(iso3 %in% coi) %>% 
+#  dplyr::select(iso3, CGI)
+```
+
+
+## Land metric
+
+Total spending and ICM are significantly correlated so we only keep number of ICM policies.
+
+```{r}
+land_metric<-full_join(n_icm, n_strict_pa, by = "iso3") %>% 
+  full_join(., n_spend, by = "iso3") %>% 
+mutate(n_prop_strict_pa =replace_na(n_prop_strict_pa, 0),
+         land = (n_icm + n_prop_strict_pa)/2) %>% 
+  filter(!iso3 == "MDG")
+
+
+```
+Test correlations
+```{r}
+sub_land<-land_metric %>% 
+  dplyr::select(n_icm, n_prop_strict_pa)
+land_corr <- rcorr(as.matrix(sub_land))
+land_corr
+```
+```{r}
+land_corrplot<-corrplot(land_corr$r)
+
+land_corrplot
+```
+
+# Combine all metrics
+
+```{r}
+cons_index<-full_join(climate_metric, marine_metric, by = "iso3") %>% 
+  full_join(., land_metric, by = "iso3") %>% 
+  dplyr::select(iso3, climate, marine, land) %>% 
+  mutate(Country = countrycode(iso3, "iso3c", "country.name")) %>% 
+  dplyr::select(Country, iso3, climate, marine, land)
+```
+
+```{r}
+write.csv(cons_index, here("output_data/results/Conservation_index_metric.csv"))
+```
+
+
+# Supp figure
+
+```{r}
+png(height=1800, width=3000, file= here("figures/Climate_corrplot.png"), type = "cairo")
+corrplot(clim_corr$r, 
+         method = "color",
+         addCoef.col = "grey",
+         is.corr = F,
+         order = "AOE",
+         tl.col="black",
+         tl.cex = 5,
+         cl.cex = 5,
+         number.cex = 3,
+         type = "upper",
+         cl.ratio = 0.25)
+dev.off()
+
+#method = "color", addCoef.col="grey", order = "AOE"
+```
+
+```{r}
+png(height=1800, width=1800, file=here("figures/Marine_corrplot.png"), type = "cairo")
+corrplot(mar_corr$r, 
+        method = "color",
+         addCoef.col = "grey",
+         is.corr = F,
+         order = "AOE",
+         tl.col="black",
+         tl.cex = 5,
+         cl.cex = 5,
+         number.cex = 3,
+         type = "upper",
+         cl.ratio = 0.25)
+dev.off()
+```
+
+```{r}
+png(height=1800, width=2000, file= here("figures/Land_corrplot.png"), type = "cairo")
+corrplot(land_corr$r, 
+         method = "color",
+         addCoef.col = "grey",
+         is.corr = F,
+         order = "AOE",
+         tl.col="black",
+         tl.cex = 5,
+         cl.cex = 5,
+         number.cex = 3,
+         type = "upper",
+         cl.ratio = 0.5)
+dev.off()
+```
