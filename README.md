@@ -25,7 +25,7 @@ There are seven scripts that should be executed in sequential order as follows:
 
   7. Supp_reef_iso3_threats.Rmd - this script re-calculates threats within individual BCUs within each country (Table S5)
 
-# 4. figures
+# 3. figures
 
 All figures created within scripts are saved within the figures folder.
 
