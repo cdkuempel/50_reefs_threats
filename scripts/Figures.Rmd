@@ -1,0 +1,524 @@
+---
+title: "Reef_threats_plots"
+author: "Caitie"
+date: "09/02/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(ggplot2)
+library(sf)
+library(raster)
+library(reshape2)
+library(countrycode)
+library(RColorBrewer)
+library(here)
+library(ggrepel)
+library(patchwork)
+```
+
+# Figures 1 and 2
+
+Figures 1 and 2 were created outside of the R programming language, but can be recreated with the following data.
+
+```{r}
+iso3_reef_threats_shp<- st_read(here("output_data/reefs/iso3_reef_threats.shp")) %>% 
+  mutate(prop_clim=clim_mean/cum_mean,
+         prop_land = land_mean/cum_mean,
+         prop_mar = mar_mean/cum_mean,
+         test = prop_clim + prop_land + prop_mar)
+
+reef_threats_shp<-st_read(here("output_data/reefs/reef_threats.shp")) %>% 
+  mutate(prop_clim=clim_mean/cum_mean,
+         prop_land = land_mean/cum_mean,
+         prop_mar = mar_mean/cum_mean,
+         test = prop_clim + prop_land + prop_mar)
+
+iso3_reef_threats_df<- iso3_reef_threats_shp %>% 
+  as.data.frame() %>% 
+  dplyr::select(-geometry)
+
+reef_threats_df<-reef_threats_shp %>% 
+  as.data.frame() %>% 
+  dplyr::select(-geometry)
+```
+
+# Figure 3
+
+Figure 3 can be recreated with the data below. Note additional editing was done outside of R to create the final figures in text.
+
+Panel (A) Reef
+```{r}
+med_reef_land<-median(reef_threats_df$land_mean)
+med_reef_mar<-median(reef_threats_df$mar_mean)
+
+reef_plot<-ggplot(reef_threats_df, aes(x = land_mean, y = mar_mean, label = BCUID)) +
+  geom_point() +
+  theme_bw() + 
+  geom_hline(yintercept = med_iso3_mar) +
+  geom_vline(xintercept = med_iso3_land) +
+  xlab("Average cumulative land impact") +
+  ylab("Average cumulative marine impact") + 
+  geom_text_repel() +
+  xlim(0,1) +
+  ylim(0,3)
+
+reef_plot
+```
+
+
+Panel (B) Country
+```{r}
+med_iso3_land<-median(iso3_reef_threats_df$land_mean)
+med_iso3_mar<-median(iso3_reef_threats_df$mar_mean)
+
+iso3_plot<-ggplot(iso3_reef_threats_df, aes(x = land_mean, y = mar_mean, label = ISO_Ter1)) +
+  geom_point() +
+  theme_bw() + 
+  geom_hline(yintercept = med_iso3_mar) +
+  geom_vline(xintercept = med_iso3_land) +
+  xlab("Average cumulative land impact") +
+  ylab("Average cumulative marine impact") + 
+  geom_text_repel() +
+  xlim(0,1.5) +
+  ylim(0,5)
+
+iso3_plot
+```
+
+```{r}
+reef_plot/iso3_plot + plot_annotation(tag_levels = 'A')
+```
+```{r}
+ggsave(here("figures/Figure3_land_vs_marine.png"), width = 13, height = 20, dpi = 300)
+
+```
+
+# Figure 4
+
+```{r}
+reef_diff<-st_read(here("output_data/results/reef_difference.shp"))
+iso3_diff<-st_read(here("output_data/results/iso3_reef_difference.shp"))
+
+reef_diff_df<- reef_diff %>% 
+  as.data.frame() %>%
+  dplyr::select(-geometry) 
+
+reef_diff_df<- reef_diff_df%>% 
+  mutate(ID = seq.int(nrow(reef_diff_df))) %>% 
+  rename(cum_diff = cum_mean,
+         land_diff = land_mean,
+         clim_diff = clim_mean, 
+         mar_diff = mar_mean)
+
+iso3_diff_df<- iso3_diff %>% 
+  as.data.frame() %>%
+  dplyr::select(-geometry) %>% 
+  rename(cum_diff = cum_mean,
+         land_diff = land_mean,
+         clim_diff = clim_mean, 
+         mar_diff = mar_mean)
+
+
+iso3_join<-full_join(iso3_reef_threats_df, iso3_diff_df, by = "ISO_Ter1")%>% 
+  dplyr::select(ISO_Ter1, cum_mean, clim_mean, land_mean, mar_mean, cum_diff, clim_diff, land_diff, mar_diff)
+
+reef_join<-full_join(reef_threats_df, reef_diff_df, by = "BCUID") %>% 
+  dplyr::select(BCUID, cum_mean, clim_mean, land_mean, mar_mean, cum_diff, clim_diff, land_diff, mar_diff)
+
+```
+
+
+```{r}
+med<-median(reef_join$clim_mean)
+med_diff<-median(reef_join$clim_diff)
+
+reef_clim_plot<-ggplot(reef_join, aes(x = clim_mean, y = clim_diff, label = BCUID)) +
+  geom_point() +
+  theme_bw() +
+  geom_hline(yintercept = med_diff) +
+  geom_vline(xintercept = med) +
+  xlab("Cumulative impact (2013)") +
+  ylab("Change in impact (2008-2013)") +
+  geom_text_repel() +
+  xlim(0,4) +
+  ylim(0,1.25) +
+  labs(title = "Climate")
+
+reef_clim_plot
+```
+
+```{r}
+med<-median(reef_join$mar_mean)
+med_diff<-median(reef_join$mar_diff)
+
+reef_mar_plot<-ggplot(reef_join, aes(x = mar_mean, y = mar_diff, label = BCUID)) +
+  geom_point() +
+  theme_bw() +
+  geom_hline(yintercept = med_diff) +
+  geom_vline(xintercept = med) +
+  xlab("Cumulative impact (2013)") +
+  ylab("Change in impact (2008-2013)") +
+  geom_text_repel() +
+  xlim(0,5) +
+  ylim(-1, 0.04) +
+  labs(title = "Marine")
+
+reef_mar_plot
+```
+
+```{r}
+med<-median(reef_join$land_mean)
+med_diff<-median(reef_join$land_diff)
+
+reef_land_plot<-ggplot(reef_join, aes(x = land_mean, y = land_diff, label = BCUID)) +
+  geom_point() +
+  theme_bw() +
+  geom_hline(yintercept = med_diff) +
+  geom_vline(xintercept = med) +
+  xlab("Cumulative impact (2013)") +
+  ylab("Change in impact (2008-2013)") +
+  geom_text_repel() +
+  xlim(0,1.6) +
+  ylim(-0.075,0.075) +
+  labs(title = "Land")
+
+reef_land_plot
+```
+
+```{r}
+med<-median(iso3_join$clim_mean)
+med_diff<-median(iso3_join$clim_diff)
+
+iso3_clim_plot<-ggplot(iso3_join, aes(x = clim_mean, y = clim_diff, label = ISO_Ter1)) +
+  geom_point() +
+  theme_bw() +
+  geom_hline(yintercept = med_diff) +
+  geom_vline(xintercept = med) +
+  xlab("Cumulative impact (2013)") +
+  ylab("Change in impact (2008-2013)") +
+  geom_text_repel() +
+  xlim(0,4) +
+  ylim(0,1.25) +
+  labs(title = "Climate")
+
+iso3_clim_plot
+```
+
+```{r}
+med<-median(iso3_join$mar_mean)
+med_diff<-median(iso3_join$mar_diff)
+
+iso3_mar_plot<-ggplot(iso3_join, aes(x = mar_mean, y = mar_diff, label = ISO_Ter1)) +
+  geom_point() +
+  theme_bw() +
+  geom_hline(yintercept = med_diff) +
+  geom_vline(xintercept = med) +
+  xlab("Cumulative impact (2013)") +
+  ylab("Change in impact (2008-2013)") +
+  geom_text_repel() +
+  xlim(0,5) +
+  ylim(-1,0.04) +
+  labs(title = "Marine")
+
+iso3_mar_plot
+```
+
+```{r}
+med<-median(iso3_join$land_mean)
+med_diff<-median(iso3_join$land_diff)
+
+iso3_land_plot<-ggplot(iso3_join, aes(x = land_mean, y = land_diff, label = ISO_Ter1)) +
+  geom_point() +
+  theme_bw() +
+  geom_hline(yintercept = med_diff) +
+  geom_vline(xintercept = med) +
+  xlab("Cumulative impact (2013)") +
+  ylab("Change in impact (2008-2013)") +
+  geom_text_repel() +
+  xlim(0,1.6) +
+  ylim(-0.075,0.075) +
+  labs(title = "Land")
+
+iso3_land_plot
+```
+
+```{r}
+(reef_clim_plot + reef_mar_plot + reef_land_plot)/(iso3_clim_plot + iso3_mar_plot + iso3_land_plot) + plot_annotation(tag_levels = 'A')
+```
+
+```{r}
+ggsave(here("figures/Figure4_impact_2013_vs_change.png"), width = 13, height = 13, dpi = 300)
+
+```
+
+
+# Supplementary Figure 2
+
+
+```{r}
+med<-median(reef_join$cum_mean)
+med_diff<-median(reef_join$cum_diff)
+
+reef_cum_plot<-ggplot(reef_join, aes(x = cum_mean, y = cum_diff, label = BCUID)) +
+  geom_point() +
+  theme_bw() +
+  geom_hline(yintercept = med_diff) +
+  geom_vline(xintercept = med) +
+  xlab("Cumulative impact (2013)") +
+  ylab("Change in impact (2008-2013)") +
+  geom_text_repel() +
+  xlim(0,10) +
+  ylim(-0.5, 1.25) 
+
+reef_cum_plot
+```
+
+```{r}
+med<-median(iso3_join$cum_mean)
+med_diff<-median(iso3_join$cum_diff)
+
+iso3_cum_plot<-ggplot(iso3_join, aes(x = cum_mean, y = cum_diff, label = ISO_Ter1)) +
+  geom_point() +
+  theme_bw() +
+  geom_hline(yintercept = med_diff) +
+  geom_vline(xintercept = med) +
+  xlab("Cumulative impact (2013)") +
+  ylab("Change in impact (2008-2013)") +
+  geom_text_repel() +
+  xlim(0,10) +
+  ylim(-0.5,1.25) 
+
+iso3_cum_plot
+```
+
+```{r}
+reef_cum_plot/iso3_cum_plot + plot_annotation(tag_levels = "A")
+```
+
+
+```{r}
+ggsave(here("figures/Supp_Figure2_cumulative_impact_2013_vs_change.png"), width = 13, height = 13, dpi = 300)
+
+```
+
+# Figure 5 
+
+We will plot pressure vs. index for each cateogry with trend line and median pressure/median index in dotted lines.
+Also will add some ISO3 names
+
+```{r}
+cons_index<-read.csv(here("output_data/results/Conservation_index_metric.csv")) %>% 
+  filter(!iso3 == "MDG")
+```
+
+# Join data
+
+```{r}
+threat_cons<-full_join(iso3_reef_threats_df, cons_index, by = c("ISO_Ter1" = "iso3"))
+```
+
+
+## Climate
+
+```{r}
+
+median_climate_index<-median(threat_cons$climate, na.rm = T)
+median_climate_stress<-median(threat_cons$clim_mean, na.rm = T)
+
+clim_plot<-ggplot(threat_cons, aes(x = climate, y = clim_mean, label = ISO_Ter1)) +
+  geom_point() +
+  theme_bw() +
+  labs(x = "", y = "Pressure") +
+  geom_text_repel() +
+  geom_hline(yintercept = median_climate_stress, linetype = "dashed") +
+  geom_vline(xintercept = median_climate_index, linetype = "dashed") +
+  geom_smooth(method = "lm") +
+  ggtitle('Climate') +
+  theme(plot.title = element_text(hjust = 0.5))
+
+clim_plot
+```
+
+```{r}
+
+median_marine_index<-median(threat_cons$marine, na.rm = T)
+median_marine_stress<-median(threat_cons$mar_mean, na.rm = T)
+
+
+mar_plot<-ggplot(threat_cons, aes(x = marine, y = mar_mean, label = ISO_Ter1)) +
+  geom_point() +
+  theme_bw() +
+  labs(x = "Index", y = "") +
+  geom_text_repel() +
+  geom_hline(yintercept = median_marine_stress, linetype = "dashed") +
+  geom_vline(xintercept = median_marine_index, linetype = "dashed") +
+  geom_smooth(method = "lm")+
+  ggtitle('Marine') +
+  theme(plot.title = element_text(hjust = 0.5))
+
+mar_plot
+```
+
+```{r}
+median_land_index<-median(threat_cons$land, na.rm = T)
+median_land_stress<-median(threat_cons$land_mean, na.rm = T)
+
+land_plot<-ggplot(threat_cons, aes(x = land, y = land_mean, label = ISO_Ter1)) +
+  geom_point() +
+  theme_bw() +
+  labs(x = "", y = "") +
+  geom_text_repel() +
+  geom_hline(yintercept = median_land_stress, linetype = "dashed") +
+  geom_vline(xintercept = median_land_index, linetype = "dashed") +
+  geom_smooth(method = "lm") +
+  ggtitle('Land') +
+  theme(plot.title = element_text(hjust = 0.5))
+
+land_plot
+```
+
+
+```{r}
+diff_threat_cons<-full_join(iso3_diff_df, cons_index, by = c("ISO_Ter1" = "iso3"))
+```
+
+
+```{r}
+diff_median_climate_index<-median(diff_threat_cons$climate, na.rm = T)
+diff_median_climate_stress<-median(diff_threat_cons$clim_diff, na.rm = T)
+
+diff_clim_plot<-ggplot(diff_threat_cons, aes(x = climate, y = clim_diff, label = ISO_Ter1)) +
+  geom_point() +
+  theme_bw() +
+  labs(x = "", y = "Change in pressure") +
+  geom_text_repel() +
+  geom_hline(yintercept = diff_median_climate_stress, linetype = "dashed") +
+  geom_vline(xintercept = diff_median_climate_index, linetype = "dashed") +
+  geom_smooth(method = "lm") +
+  #ggtitle('Climate') +
+  theme(plot.title = element_text(hjust = 0.5))
+
+diff_clim_plot
+```
+
+```{r}
+diff_median_marine_index<-median(diff_threat_cons$marine, na.rm = T)
+diff_median_marine_stress<-median(diff_threat_cons$mar_diff, na.rm = T)
+
+
+diff_mar_plot<-ggplot(diff_threat_cons, aes(x = marine, y = mar_diff, label = ISO_Ter1)) +
+  geom_point() +
+  theme_bw() +
+  labs(x = "Index", y = "") +
+  geom_text_repel() +
+  geom_hline(yintercept = diff_median_marine_stress, linetype = "dashed") +
+  geom_vline(xintercept = diff_median_marine_index, linetype = "dashed") +
+  geom_smooth(method = "lm")+
+  #ggtitle('Marine') +
+  theme(plot.title = element_text(hjust = 0.5))
+
+diff_mar_plot
+```
+
+```{r}
+diff_median_land_index<-median(diff_threat_cons$land, na.rm = T)
+diff_median_land_stress<-median(diff_threat_cons$land_diff, na.rm = T)
+
+diff_land_plot<-ggplot(diff_threat_cons, aes(x = land, y = land_diff, label = ISO_Ter1)) +
+  geom_point() +
+  theme_bw() +
+  labs(x = "", y = "") +
+  geom_text_repel() +
+  geom_hline(yintercept = diff_median_land_stress, linetype = "dashed") +
+  geom_vline(xintercept = diff_median_land_index, linetype = "dashed") +
+  geom_smooth(method = "lm") +
+  #ggtitle('Land') +
+  theme(plot.title = element_text(hjust = 0.5))
+
+diff_land_plot
+```
+
+```{r}
+
+patch<-clim_plot + mar_plot + land_plot + diff_clim_plot + diff_mar_plot + diff_land_plot +
+  plot_annotation(tag_levels = 'A')
+
+patch
+```
+
+```{r}
+ggsave(here("figures/Figure5_Impact_Management_index.png"), width = 13, height = 8, dpi = 300)
+```
+
+# Supplementary Figure 3
+
+```{r}
+iso3_threats_long<-iso3_reef_threats_df %>% 
+  pivot_longer(., cols = c("clim_mean", "land_mean", "mar_mean"), names_to = "cat_stress", values_to = "stress") %>% 
+  mutate(cat_stress = ifelse(cat_stress == "clim_mean", "climate",
+                             ifelse(cat_stress == "land_mean", "land",
+                                    ifelse(cat_stress == "mar_mean", "marine", NA))))
+
+cons_index_long<-cons_index %>% 
+  pivot_longer(., cols = c("climate", "land", "marine"), names_to = "cat_stress", values_to = "cons_index")
+
+threat_cons_long<-full_join(iso3_threats_long, cons_index_long, by = c("ISO_Ter1" = "iso3", "cat_stress"))
+```
+
+
+# Remove outliers
+
+Pressure outliers
+
+```{r}
+pressure_outliers<-ggplot(threat_cons_long, aes(x=cat_stress, y=stress, color=cat_stress, label = ISO_Ter1)) +
+  geom_boxplot()+
+  stat_summary(
+    aes(label = round(stat(y), 1)),
+    geom = "text", 
+    fun = function(y) { o <- boxplot.stats(y)$out; if(length(o) == 0) NA else o },
+    hjust = -1
+  ) +
+  theme_bw() +
+  labs(y = "Pressure", x = "Category")
+
+# Singapore is outlier for marine and land
+
+pressure_outliers
+
+```
+
+Outliers for index
+
+```{r}
+index_outliers<-ggplot(threat_cons_long, aes(x=cat_stress, y=cons_index, color=cat_stress, label = ISO_Ter1)) +
+  geom_boxplot()+
+  stat_summary(
+    aes(label = round(stat(y), 2)),
+    geom = "text", 
+    fun.y = function(y) { o <- boxplot.stats(y)$out; if(length(o) == 0) NA else o },
+    hjust = -1
+  ) +
+  theme_bw() +
+  labs(y = "Index", x = "Category")
+
+index_outliers
+
+# Sri Lanka is an outlier on land
+# Fiji, Solomon Islands and Bangladesh are outliers in climate
+
+```
+```{r}
+pressure_outliers + index_outliers + plot_annotation(tag_levels = 'A')
+```
+
+
+```{r}
+ggsave(here("figures/Supplementary_Figure3_Pressure_outliers.png"), dpi = 300)
+```
+
