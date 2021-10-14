@@ -1,0 +1,226 @@
+---
+title: "Untitled"
+author: "Caitie"
+date: "23/04/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(raster)
+library(sf)
+library(tidyverse)
+library(lwgeom)
+library(countrycode)
+library(here)
+```
+
+```{r}
+#Country/reef intersect
+
+iso3_reefs<-st_read(here("output_data/reefs/eez_reefs_intersect.shp"))
+```
+
+# 2013 threat data
+
+```{r}
+
+# Cumulative
+
+cum_sum<-raster(here("raw_data/pressures/global_cumul_impact_2013_all_layers.tif"))
+  
+# Land
+
+land_sum<-raster(here("output_data/pressures/land_pressures_sum.tif"))
+
+# Marine
+  
+mar_sum<-raster(here("output_data/pressures/marine_pressures_sum.tif"))
+
+# Climate
+
+clim_sum<-raster(here("output_data/pressures/climate_pressures_sum.tif"))
+```
+
+
+# Average 2013 cumulative pressures within reefs
+
+Please note that the list elements are ordered, that is to say that the first list element corresponds to the first polygon. Because of this, any summary of the list will stay ordered with the polygon data.
+
+```{r}
+# Extract raster values to list object
+
+iso3_reef_cum_vals <- raster::extract(cum_sum, iso3_reefs)
+
+# Use list apply to calculate mean for each polygon
+
+iso3_reef_cum_mean<-lapply(iso3_reef_cum_vals, FUN=mean) %>% 
+   unlist() %>% 
+  as.data.frame() %>% 
+  rename(cum_mean = ".")
+
+```
+
+
+# Average land/marine/climate cumulative pressures within reefs
+
+```{r}
+# Extract raster values to list object
+iso3_reef_clim_vals <- raster::extract(clim_sum, iso3_reefs)
+iso3_reef_land_vals <- raster::extract(land_sum,iso3_reefs)
+iso3_reef_mar_vals <- raster::extract(mar_sum, iso3_reefs)
+
+# Use list apply to calculate mean for each polygon
+iso3_reef_clim_mean<-lapply(iso3_reef_clim_vals, FUN=mean) %>% 
+  unlist() %>% 
+  as.data.frame() %>% 
+  rename(clim_mean = ".")
+
+iso3_reef_land_mean<-lapply(iso3_reef_land_vals, FUN=mean) %>% 
+  unlist() %>% 
+  as.data.frame() %>% 
+  rename(land_mean = ".")
+
+iso3_reef_mar_mean<-lapply(iso3_reef_mar_vals, FUN=mean) %>% 
+  unlist() %>% 
+  as.data.frame() %>% 
+  rename(mar_mean = ".")
+
+```
+
+
+# Join threat data to shapefiles
+
+```{r}
+iso3<-iso3_reefs %>% 
+  as.data.frame() %>% 
+  rename(BCUID = puid) %>% 
+  dplyr::select(ISO_Ter1, BCUID)
+
+iso3_reef_threats<-cbind(iso3,iso3_reef_cum_mean, iso3_reef_clim_mean, iso3_reef_land_mean, iso3_reef_mar_mean)  %>% 
+  mutate(prop_clim = clim_mean/cum_mean,
+         prop_land = land_mean/cum_mean,
+         prop_mar = mar_mean/cum_mean)
+
+iso3_reef_threats_shp<-left_join(iso3_reefs, iso3_reef_threats, by = "ISO_Ter1")
+
+st_write(iso3_reef_threats_shp, here("output_data/supplementary/Supp_reefs_by_iso3_threats.shp"), delete_layer = T)
+
+```
+
+# Change in cumulative impact
+
+```{r}
+cum08<-raster(here("raw_data/pressure_difference/2008/global_cumul_impact_2008_all_layers_except_shipping_oceanpollution_invasives.tif"))
+cum13<-raster(here("raw_data/pressure_difference/2013/global_cumul_impact_2013_all_layers_except_shipping_oceanpollution_invasives_slr.tif"))
+
+clim_2008<-raster(here("output_data/pressure_difference/climate_pressures_sum_2008.tif"))
+clim_2013<-raster(here("output_data/pressure_difference/climate_pressures_sum_2013.tif"))
+
+mar_2008<-raster(here("output_data/pressure_difference/marine_pressures_sum_2008.tif"))
+mar_2013<-raster(here("output_data/pressure_difference/marine_pressures_sum_2013.tif"))
+
+land_2008<-raster(here("output_data/pressure_difference/land_pressures_sum_2008.tif"))
+land_2013<-raster(here("output_data/pressure_difference/land_pressures_sum_2013.tif"))
+```
+
+
+
+```{r}
+iso3_reef_cum_08<-raster::extract(cum08, iso3_reefs)
+iso3_reef_cum_13<-raster::extract(cum13, iso3_reefs)
+iso3_reef_clim_2008 <- raster::extract(clim_2008, iso3_reefs)
+iso3_reef_clim_2013<-raster::extract(clim_2013, iso3_reefs)
+iso3_reef_land_2008 <- raster::extract(land_2008,iso3_reefs)
+iso3_reef_land_2013 <- raster::extract(land_2013,iso3_reefs)
+iso3_reef_mar_2008 <- raster::extract(mar_2008, iso3_reefs)
+iso3_reef_mar_2013 <- raster::extract(mar_2013, iso3_reefs)
+```
+
+
+```{r}
+# Use list apply to calculate mean for each polygon
+iso3_reef_cum_2008<-lapply(iso3_reef_cum_08, FUN=mean) %>% 
+  unlist() %>% 
+  as.data.frame() %>% 
+  rename(cum_2008 = ".")
+
+iso3_reef_cum_2013<-lapply(iso3_reef_cum_13, FUN=mean) %>% 
+  unlist() %>% 
+  as.data.frame() %>% 
+  rename(cum_2013 = ".")
+
+iso3_reef_clim_mean_2008<-lapply(iso3_reef_clim_2008, FUN=mean) %>% 
+  unlist() %>% 
+  as.data.frame() %>% 
+  rename(clim_2008 = ".")
+
+iso3_reef_clim_mean_2013<-lapply(iso3_reef_clim_2013, FUN=mean) %>% 
+  unlist() %>% 
+  as.data.frame() %>% 
+  rename(clim_2013 = ".")
+
+iso3_reef_land_mean_2008<-lapply(iso3_reef_land_2008, FUN=mean) %>% 
+  unlist() %>% 
+  as.data.frame() %>% 
+  rename(land_2008 = ".")
+
+iso3_reef_land_mean_2013<-lapply(iso3_reef_land_2013, FUN=mean) %>% 
+  unlist() %>% 
+  as.data.frame() %>% 
+  rename(land_2013 = ".")
+
+iso3_reef_mar_mean_2008<-lapply(iso3_reef_mar_2008, FUN=mean) %>% 
+  unlist() %>% 
+  as.data.frame() %>% 
+  rename(mar_2008 = ".")
+
+iso3_reef_mar_mean_2013<-lapply(iso3_reef_mar_2013, FUN=mean) %>% 
+  unlist() %>% 
+  as.data.frame() %>% 
+  rename(mar_2013 = ".")
+```
+
+
+```{r}
+iso3<-iso3_reefs %>% 
+  as.data.frame() %>% 
+  rename(BCUID = puid) %>% 
+  dplyr::select(ISO_Ter1, BCUID)
+
+iso3_reef_threats_diff<-cbind(iso3,iso3_reef_cum_2008, iso3_reef_cum_2013, iso3_reef_clim_mean_2008,iso3_reef_clim_mean_2013, iso3_reef_land_mean_2008, iso3_reef_land_mean_2013, iso3_reef_mar_mean_2008, iso3_reef_mar_mean_2013) %>% 
+  mutate(iso3_reef_cum_diff =  cum_2013 - cum_2008,
+         iso3_reef_clim_diff = clim_2013 - clim_2008,
+         iso3_reef_land_diff = land_2013 - land_2008,
+         iso3_reef_mar_diff = mar_2013 - mar_2008)
+
+iso3_reef_threats_diff_shp<-left_join(iso3_reefs, iso3_reef_threats_diff, by = "ISO_Ter1")
+
+st_write(iso3_reef_threats_diff_shp, here("output_data/supplementary/Supp_reef_by_iso3_difference.shp"), delete_layer = T)
+
+```
+
+
+
+```{r}
+iso3_reef_threats_diff2<-iso3_reef_threats_diff %>% 
+  mutate(prop_clim08 = clim_2008/cum_2008,
+         prop_clim13 = clim_2013/cum_2013,
+         prop_clim_diff = prop_clim13 - prop_clim08,
+         prop_mar08 = mar_2008/cum_2008,
+         prop_mar13 = mar_2013/cum_2013,
+         prop_mar_diff = prop_mar13 - prop_mar08,
+         prop_land08 = land_2008/cum_2008,
+         prop_land13 = land_2013/cum_2013,
+         prop_land_diff = prop_land13 - prop_land08)
+
+supp_table<-left_join(iso3_reef_threats, iso3_reef_threats_diff2, by = c("ISO_Ter1", "BCUID")) %>% 
+  mutate(Country = countrycode(ISO_Ter1, "iso3c", "country.name"))
+
+write_csv(supp_table, here("output_data/supplementary/Supp_reef_by_iso3_table.csv"))
+```
+
+
