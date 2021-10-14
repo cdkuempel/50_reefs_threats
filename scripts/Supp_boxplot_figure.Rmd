@@ -1,0 +1,249 @@
+---
+title: "Untitled"
+author: "Caitie"
+date: "22/07/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(sf)
+library(tidyverse)
+library(ggplot2)
+library(viridis)
+library(stringr)
+library(patchwork)
+library(here)
+library(doParallel)
+library(foreach)
+library(raster)
+library(reshape2)
+
+```
+
+
+# Human stressors
+
+```{r}
+
+#Cumulative stressor data resculed by one time period can be found here:
+
+#https://knb.ecoinformatics.org/view/doi:10.5063/F1DR2SDD
+
+
+#Weblinks
+
+stress_urls<-c("https://knb.ecoinformatics.org/knb/d1/mn/v2/object/rescaled_2013_one_artisanal_fishing_mol_20150713212645",
+               "https://knb.ecoinformatics.org/knb/d1/mn/v2/object/rescaled_2013_one_demersal_destructive_fishing_mol_20150713212700",
+               "https://knb.ecoinformatics.org/knb/d1/mn/v2/object/rescaled_2013_one_demersal_nondest_high_bycatch_mol_20150713212720",
+               "https://knb.ecoinformatics.org/knb/d1/mn/v2/object/rescaled_2013_one_demersal_nondest_low_bycatch_mol_20150713212741",
+               "https://knb.ecoinformatics.org/knb/d1/mn/v2/object/rescaled_2013_one_inorganic_mol_20150713212755",
+               "https://knb.ecoinformatics.org/knb/d1/mn/v2/object/rescaled_2013_one_inorganic_mol_20150713212755",
+               "https://knb.ecoinformatics.org/knb/d1/mn/v2/object/rescaled_2013_one_invasives_mol_20150713212803",
+               "https://knb.ecoinformatics.org/knb/d1/mn/v2/object/rescaled_2013_one_night_lights_mol_20150713212807",
+               "https://knb.ecoinformatics.org/knb/d1/mn/v2/object/rescaled_2013_one_ocean_acidification_mol_20150713212812",
+               "https://knb.ecoinformatics.org/knb/d1/mn/v2/object/rescaled_2013_one_ocean_pollution_mol_20150713212823",
+               "https://knb.ecoinformatics.org/knb/d1/mn/v2/object/rescaled_2013_one_oil_rigs_mol_20150713212830",
+               "https://knb.ecoinformatics.org/knb/d1/mn/v2/object/rescaled_2013_one_pelagic_high_bycatch_mol_20150713212834",
+               "https://knb.ecoinformatics.org/knb/d1/mn/v2/object/rescaled_2013_one_pelagic_low_bycatch_mol_20150713212848",
+               "https://knb.ecoinformatics.org/knb/d1/mn/v2/object/rescaled_2013_one_plumes_fert_mol_20150713212902",
+               "https://knb.ecoinformatics.org/knb/d1/mn/v2/object/rescaled_2013_one_plumes_pest_mol_20150713212910",
+               "https://knb.ecoinformatics.org/knb/d1/mn/v2/object/rescaled_2013_one_population_mol_20150713212915",
+               "https://knb.ecoinformatics.org/knb/d1/mn/v2/object/rescaled_2013_one_shipping_mol_20150713212925",
+               "https://knb.ecoinformatics.org/knb/d1/mn/v2/object/rescaled_2013_one_slr_mol_20150713213412",
+               "https://knb.ecoinformatics.org/knb/d1/mn/v2/object/rescaled_2013_one_sst_mol_20150713213701",
+               "https://knb.ecoinformatics.org/knb/d1/mn/v2/object/rescaled_2013_one_uv_mol_20150713213905")
+```
+
+
+```{r}
+cl<-makeCluster(7)
+registerDoParallel(cl)
+
+foreach(i = 1:length(stress_urls)) %dopar% {
+mydir<-here::here("raw_data/stressors") #path to save files
+temp<-tempfile(tmpdir=mydir, fileext=".zip")
+download.file(stress_urls[i], temp)
+unzip(temp, exdir=mydir)
+unlink(temp) #delete the zip file
+}
+```
+
+# Climate stressors
+```{r}
+
+mydir<-here("raw_data/stressors")
+
+clim_dat<-c("ocean_acidification.tif", "slr.tif", "sst.tif", "uv.tif")
+
+test<-raster(paste0(mydir, "/",clim_dat[2]))
+
+```
+
+# Country data
+
+```{r}
+iso3_reefs<-st_read(here("output_data/reefs/eez_reefs_dissolve.shp"))
+
+iso3_reefs<-st_transform(iso3_reefs, "+proj=moll +lon_0=0 +x_0=0 +y_0=0 +ellps=WGS84 +units=m +no_defs ")
+
+iso3<-iso3_reefs %>% 
+  as.data.frame() %>% 
+  dplyr::select(ISO_Ter1)
+```
+
+
+# Reef data
+
+```{r}
+reefs<-st_read(here("output_data/reefs/Reefs_moll.shp"))
+
+reefs<-st_transform(reefs, "+proj=moll +lon_0=0 +x_0=0 +y_0=0 +ellps=WGS84 +units=m +no_defs ")
+
+reefs_df<-reefs %>% 
+  as.data.frame() %>% 
+  rename(BCUID = puid) %>% 
+  dplyr::select(BCUID)
+```
+
+# Average stressors
+
+```{r}
+stress_dir<-here("raw_data/stressors")
+stress_files<-list.files(path = stress_dir, pattern = ".tif$", full.names = T)
+stress_names<-list.files(path = stress_dir, pattern = ".tif$")
+stress_names2<-substr(stress_names,1,nchar(stress_names)-4)
+```
+
+```{r}
+done<-iso3
+
+for(i in 1:length(stress_files)){
+print(i)
+stress_ras<-raster(stress_files[i])
+stress_vals <- raster::extract(stress_ras, iso3_reefs)
+stress_mean <- lapply(stress_vals, FUN=mean, na.rm = T) %>% #removed nas
+  unlist() %>% 
+  as.data.frame() 
+
+colnames(stress_mean)[1]<-stress_names2[i]
+
+done<-cbind(done, stress_mean)
+
+}
+
+stress_df<-melt(done, id.vars = "ISO_Ter1", value.name = "value") %>% 
+  rename(iso3 = ISO_Ter1)
+
+write.csv(stress_df, here("output_data/supplementary/iso3_avg_ind_stressors.csv"))
+```
+
+```{r}
+done2<-reefs_df
+
+for(i in 1:length(stress_files)){
+print(i)
+stress_ras<-raster(stress_files[i])
+stress_vals <- raster::extract(stress_ras, reefs)
+stress_mean <- lapply(stress_vals, FUN=mean, na.rm = T) %>% #removed nas
+  unlist() %>% 
+  as.data.frame() 
+
+colnames(stress_mean)[1]<-stress_names2[i]
+
+done2<-cbind(done2, stress_mean)
+
+}
+
+stress_df2<-melt(done2, id.vars = "BCUID", value.name = "value")
+
+write.csv(stress_df2, here("output_data/supplementary/reefs_avg_ind_stressors.csv"))
+```
+
+# Stress by category
+
+```{r}
+iso3_stress<-read.csv(here("output_data/supplementary/iso3_avg_ind_stressors.csv"))
+reef_stress<-read.csv(here("output_data/supplementary/reefs_avg_ind_stressors.csv"))
+
+```
+
+
+```{r}
+marine<-c("artisanal_fishing" , "demersal_destructive_fishing", "demersal_nondest_high_bycatch", "demersal_nondest_low_bycatch", "invasives", "ocean_pollution",  "oil_rigs", "pelagic_high_bycatch", "pelagic_low_bycatch", "shipping")
+land<-c("inorganic",  "population",  "night_lights", "plumes_pest", "plumes_fert")
+climate<-c("slr", "sst", "uv", "ocean_acidification"  )
+```
+
+```{r}
+iso3_stress<-iso3_stress %>% 
+  mutate(type = ifelse(variable %in% marine, "Marine",
+                       ifelse(variable %in% land, "Land",
+                              ifelse(variable %in% climate, "Climate", NA))),
+         label = str_replace_all(variable, "_", " "),
+         label = str_to_title(label),
+         label = ifelse(label == "Slr", "Sea Level Rise",
+                    ifelse(label == "Sst", "Sea Surface Temperature",
+                       ifelse(label == "Uv", "UV", as.character(label)))))
+reef_stress<-reef_stress %>% 
+  mutate(type = ifelse(variable %in% marine, "Marine",
+                       ifelse(variable %in% land, "Land",
+                              ifelse(variable %in% climate, "Climate", NA))),
+         label = str_replace_all(variable, "_", " "),
+         label = str_to_title(label),
+         label = ifelse(label == "Slr", "Sea Level Rise",
+                    ifelse(label == "Sst", "Sea Surface Temperature",
+                       ifelse(label == "Uv", "UV", as.character(label)))))
+```
+
+# Plots of each stressor for each category (marine/land/climate)
+
+## Within countries
+
+```{r}
+iso3_plot<-ggplot(iso3_stress, aes(y=value, x = label)) +
+  geom_boxplot() +
+  facet_wrap(~type, scales = "free") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
+        legend.position = "none") +
+  xlab("") +
+  ylim(0,1) 
+
+iso3_plot
+```
+
+```{r}
+#ggsave(here("figures/Country_stressor_boxplot.png"), dpi = 300, width = 10, height = 5)
+```
+
+## Within BCUs
+
+```{r}
+reef_plot<-ggplot(reef_stress, aes(y=value, x = label)) +
+  geom_boxplot() +
+  facet_wrap(~type, scales = "free") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
+        legend.position = "none") +
+  xlab("") +
+  ylim(0,1)
+
+reef_plot
+```
+```{r}
+#ggsave(here("figures/BCU_stressor_boxplot.png"), dpi = 300, width = 10, height = 5)
+```
+
+```{r}
+
+iso3_plot/reef_plot + plot_annotation(tag_levels = "A")
+```
+```{r}
+ggsave(here("figures/Supp_Figure4_combined_boxplots.png"), dpi = 300, width = 10, height = 10)
+```
+
