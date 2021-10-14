@@ -203,7 +203,7 @@ Gap fill missing countries - Australia and French Polynesia
 #  filter(!Country == "") %>% 
 #  mutate(iso3 = countrycode(Country, "country.name", "iso3c"),
 #         iso3 = ifelse(Country == "Micronesia", "FSM",
-                       ifelse(Country == "Sao Tom\x8e and Principe", "STP", #as.character(iso3))))
+#                       ifelse(Country == "Sao Tom\x8e and Principe", "STP", #as.character(iso3))))
 
 #renew_done<-left_join(cont, renew2, by = "iso3")
 
@@ -213,7 +213,7 @@ Gap fill missing countries - Australia and French Polynesia
 #aus_nz<- renew_done %>% 
 #  filter(Region1 == "Australia and New Zealand") %>% 
 #  mutate(avg_USD = mean(Total.USD, na.rm = T),
-         avg_MW = mean(Total.MW, na.rm = T))
+#         avg_MW = mean(Total.MW, na.rm = T))
 
 #polynesia<-renew_done %>% 
 #  filter(Region1 == "Polynesia") %>% 
