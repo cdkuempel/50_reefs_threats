@@ -461,13 +461,6 @@ threat_cons_long<-full_join(iso3_threats_long, cons_index_long, by = c("ISO_Ter1
 
 # Climate threat vs. conservation potential
 
-```{r}
-ggplot(threat_cons, aes(x = clim_mean, y = climate, label = ISO_Ter1)) +
-  geom_point() +
-  ggrepel::geom_text_repel() +
-  theme_bw() +
-  geom_smooth(method = "lm")
-```
 
 ```{r}
 cor.test(threat_cons$clim_mean, threat_cons$climate, method = "pearson")
@@ -478,15 +471,6 @@ cor.test(threat_cons$clim_mean, threat_cons$climate, method = "pearson")
 # Land threat vs conservation potential
 
 ```{r}
-ggplot(threat_cons, aes(x = land_mean, y = land, label = ISO_Ter1)) +
-  geom_point() +
-  ggrepel::geom_text_repel() +
-  theme_bw() +
-  geom_smooth(method = "lm")
-
-
-```
-```{r}
 cor.test(threat_cons$land_mean, threat_cons$land)
 ```
 
@@ -494,13 +478,6 @@ cor.test(threat_cons$land_mean, threat_cons$land)
 
 # Marine threat vs conservation potential
 
-```{r}
-ggplot(threat_cons, aes(x = mar_mean, y = marine, label = ISO_Ter1)) +
-  geom_point() +
-  ggrepel::geom_text_repel() +
-  theme_bw() +
-  geom_smooth(method = "lm")
-```
 ```{r}
 cor.test(threat_cons$mar_mean, threat_cons$marine)
 ```
@@ -683,121 +660,6 @@ sub_marine<-threat_cons %>%
 cor.test(sub_marine$marine, sub_marine$mar_mean, method = "pearson")
 ```
 
-# Figure
-
-We will plot pressure vs. index for each cateogry with trend line and median pressure/median index in dotted lines.
-Also will add some ISO3 names
-
-## Climate
-
-```{r}
-library(ggrepel)
-
-clim_plot<-ggplot(threat_cons, aes(x = climate, y = clim_mean, label = ISO_Ter1)) +
-  geom_point() +
-  theme_bw() +
-  labs(x = "", y = "Pressure") +
-  geom_text_repel() +
-  geom_hline(yintercept = median_climate_stress, linetype = "dashed") +
-  geom_vline(xintercept = median_climate_index, linetype = "dashed") +
-  geom_smooth(method = "lm") +
-  ggtitle('Climate') +
-  theme(plot.title = element_text(hjust = 0.5))
-
-clim_plot
-```
-
-```{r}
-mar_plot<-ggplot(threat_cons, aes(x = marine, y = mar_mean, label = ISO_Ter1)) +
-  geom_point() +
-  theme_bw() +
-  labs(x = "Index", y = "") +
-  geom_text_repel() +
-  geom_hline(yintercept = median_marine_stress, linetype = "dashed") +
-  geom_vline(xintercept = median_marine_index, linetype = "dashed") +
-  geom_smooth(method = "lm")+
-  ggtitle('Marine') +
-  theme(plot.title = element_text(hjust = 0.5))
-
-mar_plot
-```
-
-```{r}
-
-land_plot<-ggplot(threat_cons, aes(x = land, y = land_mean, label = ISO_Ter1)) +
-  geom_point() +
-  theme_bw() +
-  labs(x = "", y = "") +
-  geom_text_repel() +
-  geom_hline(yintercept = median_land_stress, linetype = "dashed") +
-  geom_vline(xintercept = median_land_index, linetype = "dashed") +
-  geom_smooth(method = "lm") +
-  ggtitle('Land') +
-  theme(plot.title = element_text(hjust = 0.5))
-
-land_plot
-```
-
-
-```{r}
-diff_clim_plot<-ggplot(diff_threat_cons, aes(x = climate, y = clim_diff, label = ISO_Ter1)) +
-  geom_point() +
-  theme_bw() +
-  labs(x = "", y = "Change in pressure") +
-  geom_text_repel() +
-  geom_hline(yintercept = diff_median_climate_stress, linetype = "dashed") +
-  geom_vline(xintercept = diff_median_climate_index, linetype = "dashed") +
-  geom_smooth(method = "lm") +
-  #ggtitle('Climate') +
-  theme(plot.title = element_text(hjust = 0.5))
-
-diff_clim_plot
-```
-
-```{r}
-
-diff_mar_plot<-ggplot(diff_threat_cons, aes(x = marine, y = mar_diff, label = ISO_Ter1)) +
-  geom_point() +
-  theme_bw() +
-  labs(x = "Index", y = "") +
-  geom_text_repel() +
-  geom_hline(yintercept = diff_median_marine_stress, linetype = "dashed") +
-  geom_vline(xintercept = diff_median_marine_index, linetype = "dashed") +
-  geom_smooth(method = "lm")+
-  #ggtitle('Marine') +
-  theme(plot.title = element_text(hjust = 0.5))
-
-diff_mar_plot
-```
-
-```{r}
-
-diff_land_plot<-ggplot(diff_threat_cons, aes(x = land, y = land_diff, label = ISO_Ter1)) +
-  geom_point() +
-  theme_bw() +
-  labs(x = "", y = "") +
-  geom_text_repel() +
-  geom_hline(yintercept = diff_median_land_stress, linetype = "dashed") +
-  geom_vline(xintercept = diff_median_land_index, linetype = "dashed") +
-  geom_smooth(method = "lm") +
-  #ggtitle('Land') +
-  theme(plot.title = element_text(hjust = 0.5))
-
-diff_land_plot
-```
-
-```{r}
-library(patchwork)
-
-patch<-clim_plot + mar_plot + land_plot + diff_clim_plot + diff_mar_plot + diff_land_plot +
-  plot_annotation(tag_levels = 'A')
-
-patch
-```
-
-```{r}
-ggsave(here("Figures/Pressure_indices.png"), width = 13, height = 8, dpi = 300)
-```
 
 # compare BCU and country
 
