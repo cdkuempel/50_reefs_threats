@@ -109,6 +109,8 @@ reefs_moll2_df<-reefs_moll2 %>%
   as.data.frame()%>% 
   dplyr::select(-geometry) 
 
+st_write(reefs_moll2, here("output_data/reefs/Reefs_moll.shp"), delete.layer = T)
+
 ```
 
 # Threat data
