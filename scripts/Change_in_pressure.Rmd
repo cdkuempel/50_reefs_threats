@@ -221,8 +221,8 @@ writeRaster(mar_diff, here("output_data/pressure_difference/mar_pressures_diff.t
 # Calculate cumulative change
 
 ```{r}
-cum08<-raster("/home/kuempel/Cumulative_threats_data/pressure_difference/2008/global_cumul_impact_2008_all_layers_except_shipping_oceanpollution_invasives.tif")
-cum13<-raster("/home/kuempel/Cumulative_threats_data/pressure_difference/2013/global_cumul_impact_2013_all_layers_except_shipping_oceanpollution_invasives_slr.tif")
+cum08<-raster(here("raw_data/pressure_difference/2008/global_cumul_impact_2008_all_layers_except_shipping_oceanpollution_invasives.tif"))
+cum13<-raster(here("raw_data/pressure_difference/2013/global_cumul_impact_2013_all_layers_except_shipping_oceanpollution_invasives_slr.tif"))
 ```
 
 ```{r}
