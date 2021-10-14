@@ -1,0 +1,821 @@
+---
+title: "Results"
+author: "Caitie"
+date: "13/02/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(sf)
+library(countrycode)
+```
+
+
+# Load data
+
+```{r}
+iso3_reef_threats_shp<- st_read(here("output_data/reefs/iso3_reef_threats.shp")) %>% 
+  mutate(prop_clim=clim_mean/cum_mean,
+         prop_land = land_mean/cum_mean,
+         prop_mar = mar_mean/cum_mean,
+         test = prop_clim + prop_land + prop_mar,
+         area_m2 =st_area(.),
+         area_km2 = as.numeric(area_m2/1000000)) 
+
+reef_threats_shp<-st_read(here("output_data/reefs/reef_threats.shp")) %>% 
+  mutate(prop_clim=clim_mean/cum_mean,
+         prop_land = land_mean/cum_mean,
+         prop_mar = mar_mean/cum_mean,
+         test = prop_clim + prop_land + prop_mar,
+         area_m2 =st_area(.))
+
+eez_reefs<-st_read(here("output_data/reefs/eez_reefs_intersect.shp")) %>% 
+  rename(BCUID = puid)
+
+
+```
+
+Change to data frames
+
+```{r}
+reef_threats_df<-reef_threats_shp %>% 
+  as.data.frame() %>% 
+  dplyr::select(-geometry) %>% 
+  filter(!BCUID == 30)
+
+iso3_threats_df<-iso3_reef_threats_shp %>% 
+  as.data.frame() %>% 
+  dplyr::select(-geometry)  %>% 
+  mutate(Country = countrycode(ISO_Ter1, "iso3c", "country.name")) %>% 
+  filter(!ISO_Ter1 == "MDG")
+
+eez_reef_df<- eez_reefs %>% 
+  as.data.frame() %>% 
+  dplyr::select(-geometry)
+
+eez_reef_threat_df<-full_join(eez_reef_df, reef_threats_df, by = "BCUID") %>% 
+  mutate(Country = countrycode(ISO_Ter1, "iso3c", "country.name")) %>% 
+  filter(!ISO_Ter1 == "MDG")
+
+write_csv(iso3_threats_df, here("output_data/results/iso3_reef_threats_df.csv"))
+write_csv(reef_threats_df, here("output_data/results/reef_threats_df.csv"))
+write_csv(eez_reef_threat_df, here("output_data/results/eez_reef_threats_df.csv"))
+
+```
+
+# Reefs - Cumulative impacts
+
+
+```{r}
+min(reef_threats_df$cum_mean)
+max(reef_threats_df$cum_mean)
+mean(reef_threats_df$cum_mean)
+```
+
+```{r}
+length(which(reef_threats_df$cum_mean >4))
+
+length(which(reef_threats_df$cum_mean >4))/nrow(reef_threats_df)
+```
+
+```{r}
+eez_reefs_df<-eez_reefs %>% 
+  as.data.frame() %>% 
+  dplyr::select(-geometry) %>% 
+  filter(!BCUID == 30) %>% 
+  group_by(ISO_Ter1) %>% 
+  summarise(count = length(unique(BCUID)))
+
+eez_reefs_df_bcu_count<-eez_reefs %>% 
+  as.data.frame() %>% 
+  dplyr::select(-geometry) %>% 
+  filter(!BCUID == 30) %>% 
+  group_by(BCUID) %>% 
+  summarise(count = length(unique(ISO_Ter1)))
+
+# Countries within each BCU
+length(which(eez_reefs_df_bcu_count$count == 1))
+length(which(eez_reefs_df_bcu_count$count == 2))
+length(which(eez_reefs_df_bcu_count$count == 3))
+length(which(eez_reefs_df_bcu_count$count >3))
+
+# BCUs within each country
+length(which(eez_reefs_df$count==1))
+length(which(eez_reefs_df$count==2))
+length(which(eez_reefs_df$count>2))
+```
+
+```{r}
+View(reef_threats_df)
+```
+
+
+# Proportion climate impacts
+```{r}
+mean(reef_threats_df$prop_clim)
+sd(reef_threats_df$prop_clim)
+min(reef_threats_df$prop_clim)
+max(reef_threats_df$prop_clim)
+
+```
+
+
+# Proportion land impacts
+```{r}
+mean(reef_threats_df$prop_land)
+sd(reef_threats_df$prop_land)
+min(reef_threats_df$prop_land)
+max(reef_threats_df$prop_land)
+
+```
+
+# Proportion of marine impacts
+```{r}
+mean(reef_threats_df$prop_mar)
+sd(reef_threats_df$prop_mar)
+min(reef_threats_df$prop_mar)
+max(reef_threats_df$prop_mar)
+
+```
+
+
+# Marine vs. land
+
+```{r}
+mar_med_reef<-median(reef_threats_df$mar_mean)
+land_med_reef<-median(reef_threats_df$land_mean)
+
+#Number of reefs with high marine and high land threats
+length(which(reef_threats_df$mar_mean >= mar_med_reef & reef_threats_df$land_mean >= land_med_reef))
+
+#Number of reefs with high marine and low land threats
+length(which(reef_threats_df$mar_mean >= mar_med_reef & reef_threats_df$land_mean < land_med_reef))
+
+length(which(reef_threats_df$mar_mean >= mar_med_reef & reef_threats_df$land_mean < land_med_reef))/nrow(reef_threats_df)
+test<-reef_threats_df[which(reef_threats_df$mar_mean >= mar_med_reef & reef_threats_df$land_mean < land_med_reef),]
+
+#Number of reefs with low marine and high land threats
+length(which(reef_threats_df$mar_mean < mar_med_reef & reef_threats_df$land_mean >= land_med_reef))
+length(which(reef_threats_df$mar_mean < mar_med_reef & reef_threats_df$land_mean >= land_med_reef))/nrow(reef_threats_df)
+test<-reef_threats_df[which(reef_threats_df$mar_mean < mar_med_reef & reef_threats_df$land_mean >= land_med_reef),]
+
+#Number of reefs with low marine and low land threats
+length(which(reef_threats_df$mar_mean < mar_med_reef & reef_threats_df$land_mean < land_med_reef))
+length(which(reef_threats_df$mar_mean < mar_med_reef & reef_threats_df$land_mean < land_med_reef))/nrow(reef_threats_df)
+```
+
+
+```{r}
+# Number of BCUs within each country
+n_c<-eez_reef_df %>% 
+  filter(!BCUID == 30) %>% 
+  group_by(ISO_Ter1) %>% 
+  summarise(n = length(unique(BCUID)))
+
+n_r<-eez_reef_df %>% 
+  filter(!BCUID == 30) %>% 
+  group_by(BCUID) %>% 
+  summarise(n = length(unique(ISO_Ter1)))
+
+length(which(n_c$n == 1))
+length(which(n_r$n == 1))
+length(which(n_r$n == 2))
+length(which(n_r$n == 3))
+length(which(n_r$n == 4))
+```
+
+
+# ISO3 - Cumulative impacts
+
+
+```{r}
+min(iso3_threats_df$cum_mean)
+max(iso3_threats_df$cum_mean)
+mean(iso3_threats_df$cum_mean)
+sd(iso3_threats_df$cum_mean)
+median(iso3_threats_df$cum_mean)
+```
+
+```{r}
+length(which(iso3_threats_df$cum_mean >4))
+
+length(which(iso3_threats_df$cum_mean >4))/nrow(iso3_threats_df)
+```
+
+# Proportion climate
+```{r}
+mean(iso3_threats_df$prop_clim)
+sd(iso3_threats_df$prop_clim)
+min(iso3_threats_df$prop_clim)
+max(iso3_threats_df$prop_clim)
+
+```
+
+# Proportion land
+```{r}
+mean(iso3_threats_df$prop_land)
+sd(iso3_threats_df$prop_land)
+min(iso3_threats_df$prop_land)
+max(iso3_threats_df$prop_land)
+
+```
+
+# Proportion marine
+```{r}
+mean(iso3_threats_df$prop_mar)
+sd(iso3_threats_df$prop_mar)
+min(iso3_threats_df$prop_mar)
+max(iso3_threats_df$prop_mar)
+
+```
+
+
+# ISO3 Marine vs. land
+
+```{r}
+mar_med_iso3<-median(iso3_threats_df$mar_mean)
+land_med_iso3<-median(iso3_threats_df$land_mean)
+
+#Number of reefs with high marine and high land threats
+length(which(iso3_threats_df$mar_mean >= mar_med_iso3 & iso3_threats_df$land_mean >= land_med_iso3))
+
+test<-iso3_threats_df[which(iso3_threats_df$mar_mean >= mar_med_iso3 & iso3_threats_df$land_mean >= land_med_iso3),]
+
+#Number of reefs with high marine and low land threats
+length(which(iso3_threats_df$mar_mean >= mar_med_iso3 & iso3_threats_df$land_mean < land_med_iso3))
+length(which(iso3_threats_df$mar_mean >= mar_med_iso3 & iso3_threats_df$land_mean < land_med_iso3))/nrow(iso3_threats_df)
+
+test<-iso3_threats_df[which(iso3_threats_df$mar_mean >= mar_med_iso3 & iso3_threats_df$land_mean < land_med_iso3),]
+
+#Number of reefs with low marine and high land threats
+length(which(iso3_threats_df$mar_mean < mar_med_iso3 & iso3_threats_df$land_mean >= land_med_iso3))
+length(which(iso3_threats_df$mar_mean < mar_med_iso3 & iso3_threats_df$land_mean >= land_med_iso3))/nrow(iso3_threats_df)
+
+test<-iso3_threats_df[which(iso3_threats_df$mar_mean < mar_med_iso3 & iso3_threats_df$land_mean >= land_med_iso3),]
+
+#Number of reefs with low marine and low land threats
+length(which(iso3_threats_df$mar_mean < mar_med_iso3 & iso3_threats_df$land_mean < land_med_iso3))
+length(which(iso3_threats_df$mar_mean < mar_med_iso3 & iso3_threats_df$land_mean < land_med_iso3))/nrow(iso3_threats_df)
+```
+
+
+```{r}
+nc_df<-left_join(n_c, iso3_threats_df, by = "ISO_Ter1")
+
+ggplot(nc_df, aes(x = cum_mean, y = n)) +
+  geom_point()
+```
+
+# Correlation between impacts and number of BCUs in a country
+```{r}
+cor.test(nc_df$cum_mean, nc_df$n, method = "pearson")
+
+nc_df2<-nc_df %>% 
+  filter(!ISO_Ter1 %in% c("IDN", "AUS", "SGP"))
+
+cor.test(nc_df2$cum_mean, nc_df2$n, method = "pearson")
+
+```
+
+```{r}
+ggplot(nc_df2, aes(x = cum_mean, y = n)) +
+  geom_point()
+```
+
+```{r}
+nr_df<-left_join(n_r,reef_threats_df, by = "BCUID")
+
+ggplot(nr_df, aes(x = cum_mean, y = n)) +
+  geom_point()
+
+```
+
+```{r}
+cor.test(nr_df$cum_mean, nr_df$n, method = "pearson")
+
+```
+
+# Change in cumulative impacts
+
+```{r}
+diff_iso3_threats_df<- read.csv(here("output_data/results/all_iso3_2008_2013_diff.csv")) %>% 
+ dplyr::select(ISO_Ter1, cum_diff, clim_diff, mar_diff, land_diff, prop_clim_diff, prop_mar_diff, prop_land_diff) %>% 
+  filter(!ISO_Ter1 == "MDG")  %>% 
+  mutate(Country = countrycode(ISO_Ter1, "iso3c", "country.name"))
+
+diff_reef_threats_df<-read.csv(here("output_data/results/all_reef_2008_2013_diff.csv")) %>% 
+ dplyr::select(BCUID, cum_diff, clim_diff, mar_diff, land_diff, prop_clim_diff, prop_mar_diff, prop_land_diff) %>%
+  filter(!BCUID == 30)
+```
+
+
+```{r}
+
+diff_eez_reef_threat_df<-left_join(eez_reef_df, diff_reef_threats_df, by = "BCUID")
+
+write_csv(diff_reef_threats_df, here("output_data/results/reef_difference_df.csv"))
+
+write_csv(diff_iso3_threats_df, here("output_data/results/iso3_reef_difference_df.csv"))
+```
+
+```{r}
+# How many BCUs increased threats
+
+length(which(diff_reef_threats_df$cum_diff > 0))
+length(which(diff_reef_threats_df$cum_diff > 0))/nrow(diff_reef_threats_df)
+```
+
+# Climate impacts
+
+```{r}
+length(which(diff_reef_threats_df$clim_diff > 0))
+length(which(diff_reef_threats_df$clim_diff > 0))/nrow(diff_reef_threats_df)
+mean(diff_reef_threats_df$clim_diff)
+sd(diff_reef_threats_df$clim_diff)
+
+```
+
+
+# Land impacts
+```{r}
+length(which(diff_reef_threats_df$land_diff > 0))
+length(which(diff_reef_threats_df$land_diff > 0))/nrow(diff_reef_threats_df)
+mean(diff_reef_threats_df$land_diff)
+sd(diff_reef_threats_df$land_diff)
+```
+
+# Marine impacts
+```{r}
+length(which(diff_reef_threats_df$mar_diff > 0))
+length(which(diff_reef_threats_df$mar_diff > 0))/nrow(diff_reef_threats_df)
+mean(diff_reef_threats_df$mar_diff)
+sd(diff_reef_threats_df$mar_diff)
+```
+
+#Country results
+
+```{r}
+length(which(diff_iso3_threats_df$cum_diff > 0))
+mean(diff_iso3_threats_df$cum_diff)
+sd(diff_iso3_threats_df$cum_diff)
+
+```
+#climate
+
+```{r}
+length(which(diff_iso3_threats_df$clim_diff < 0))
+mean(diff_iso3_threats_df$clim_diff)
+sd(diff_iso3_threats_df$clim_diff)
+
+```
+
+#land
+
+```{r}
+length(which(diff_iso3_threats_df$land_diff < 0))
+mean(diff_iso3_threats_df$land_diff)
+sd(diff_iso3_threats_df$land_diff)
+
+```
+
+#marine
+```{r}
+length(which(diff_iso3_threats_df$mar_diff < 0))
+mean(diff_iso3_threats_df$mar_diff)
+sd(diff_iso3_threats_df$mar_diff)
+
+```
+
+# Comparing increases with 2013 threats
+
+```{r}
+diff_2013_reefs<-left_join(reef_threats_df, diff_reef_threats_df, by = "BCUID")
+
+diff_2013_iso3<-left_join(iso3_threats_df, diff_iso3_threats_df, by = "ISO_Ter1")
+```
+
+
+```{r}
+#Which reefs have a big increase and a high CHI in 2013
+
+diff_med_reefs<-median(diff_2013_reefs$cum_mean)
+diff_med_iso3<-median(diff_2013_iso3$cum_mean)
+
+increase_reefs<-diff_2013_reefs[which(diff_2013_reefs$cum_diff > 0),] %>% 
+  filter(cum_mean >=diff_med_reefs)
+
+length(which(increase_reefs$land_diff>0 | increase_reefs$mar_diff >0))
+
+increase_iso3<-diff_2013_iso3[which(diff_2013_iso3$cum_diff > 0),] %>% 
+  filter(cum_mean >=diff_med_iso3)
+
+test<-diff_2013_reefs[which(diff_2013_reefs$cum_mean>=diff_med_reefs & diff_2013_reefs$cum_diff> 0),]
+
+land_test<-test[which(test$land_diff > 0),]
+
+marine_test<-test[which(test$mar_diff > 0),] %>% 
+  filter(!BCUID %in% land_test$BCUID)
+
+increase_test<-rbind(land_test, marine_test) %>% 
+  mutate(no_land_increase = land_mean - land_diff,
+         no_mar_increase =  ifelse(mar_diff > 0, mar_mean - mar_diff, mar_mean),
+         new_clim = clim_mean + clim_diff)
+
+increase_test<-increase_test %>% 
+  mutate(new_CHI = no_land_increase + no_mar_increase + new_clim,
+         diff_CHI = cum_mean - new_CHI,
+         prop_diff_CHI = diff_CHI/cum_mean)
+```
+
+
+# Management index
+
+```{r}
+cons_index<-read.csv(here("output_data/results/Conservation_index_metric.csv")) %>% 
+  filter(!iso3 == "MDG")
+```
+
+# Join data
+
+```{r}
+threat_cons<-full_join(iso3_threats_df, cons_index, by = c("ISO_Ter1" = "iso3"))
+```
+
+```{r}
+iso3_threats_long<-iso3_threats_df %>% 
+  pivot_longer(., cols = c("clim_mean", "land_mean", "mar_mean"), names_to = "cat_stress", values_to = "stress") %>% 
+  mutate(cat_stress = ifelse(cat_stress == "clim_mean", "climate",
+                             ifelse(cat_stress == "land_mean", "land",
+                                    ifelse(cat_stress == "mar_mean", "marine", NA))))
+
+cons_index_long<-cons_index %>% 
+  pivot_longer(., cols = c("climate", "land", "marine"), names_to = "cat_stress", values_to = "cons_index")
+
+threat_cons_long<-full_join(iso3_threats_long, cons_index_long, by = c("ISO_Ter1" = "iso3", "cat_stress"))
+```
+
+# Climate threat vs. conservation potential
+
+```{r}
+ggplot(threat_cons, aes(x = clim_mean, y = climate, label = ISO_Ter1)) +
+  geom_point() +
+  ggrepel::geom_text_repel() +
+  theme_bw() +
+  geom_smooth(method = "lm")
+```
+
+```{r}
+cor.test(threat_cons$clim_mean, threat_cons$climate, method = "pearson")
+```
+
+
+
+# Land threat vs conservation potential
+
+```{r}
+ggplot(threat_cons, aes(x = land_mean, y = land, label = ISO_Ter1)) +
+  geom_point() +
+  ggrepel::geom_text_repel() +
+  theme_bw() +
+  geom_smooth(method = "lm")
+
+
+```
+```{r}
+cor.test(threat_cons$land_mean, threat_cons$land)
+```
+
+
+
+# Marine threat vs conservation potential
+
+```{r}
+ggplot(threat_cons, aes(x = mar_mean, y = marine, label = ISO_Ter1)) +
+  geom_point() +
+  ggrepel::geom_text_repel() +
+  theme_bw() +
+  geom_smooth(method = "lm")
+```
+```{r}
+cor.test(threat_cons$mar_mean, threat_cons$marine)
+```
+
+```{r}
+cor.test(threat_cons$land, threat_cons$marine)
+cor.test(threat_cons$climate, threat_cons$marine)
+cor.test(threat_cons$land, threat_cons$climate)
+```
+ 
+ 
+```{r}
+median_climate_index<-median(threat_cons$climate, na.rm = T)
+median_climate_stress<-median(threat_cons$clim_mean, na.rm = T)
+
+# High impacts low management
+test<-threat_cons[which(threat_cons$clim_mean>=median_climate_stress & threat_cons$climate<median_climate_index),]
+
+# High impacts high management
+test<-threat_cons[which(threat_cons$clim_mean>=median_climate_stress & threat_cons$climate>=median_climate_index),]
+
+# Low impacts, high management
+test<-threat_cons[which(threat_cons$clim_mean<median_climate_stress & threat_cons$climate>=median_climate_index),]
+
+# Low impacts, low management
+threat_cons[which(threat_cons$clim_mean<median_climate_stress & threat_cons$climate<median_climate_index),]
+
+
+```
+
+```{r}
+median_marine_index<-median(threat_cons$marine, na.rm = T)
+median_marine_stress<-median(threat_cons$mar_mean, na.rm = T)
+
+# High impacts high management
+test<-threat_cons[which(threat_cons$mar_mean>=median_marine_stress & threat_cons$marine>=median_marine_index),]
+
+# Low impacts, high management
+test<-threat_cons[which(threat_cons$mar_mean<median_marine_stress & threat_cons$marine>=median_marine_index),]
+
+# Low impacts, low management
+test<-threat_cons[which(threat_cons$mar_mean<median_marine_stress & threat_cons$marine<median_marine_index),]
+
+# High impacts low management
+test<-threat_cons[which(threat_cons$mar_mean>=median_marine_stress & threat_cons$marine<median_marine_index),]
+
+```
+
+```{r}
+median_land_index<-median(threat_cons$land, na.rm = T)
+median_land_stress<-median(threat_cons$land_mean, na.rm = T)
+
+# High impacts low management
+test<-threat_cons[which(threat_cons$land_mean>=median_land_stress & threat_cons$land<median_land_index),]
+
+# High impacts high management
+test<-threat_cons[which(threat_cons$land_mean>=median_land_stress & threat_cons$land>=median_land_index),]
+
+# Low impacts, high management
+test<-threat_cons[which(threat_cons$land_mean<median_land_stress & threat_cons$land>=median_land_index),]
+
+# Low impacts, low management
+threat_cons[which(threat_cons$land_mean<median_land_stress & threat_cons$land<median_land_index),]
+
+```
+ 
+# Difference in threats vs. management index
+
+```{r}
+diff_threat_cons<-full_join(diff_iso3_threats_df, cons_index, by = c("ISO_Ter1" = "iso3"))
+```
+
+
+```{r}
+cor.test(diff_threat_cons$clim_diff, diff_threat_cons$climate)
+cor.test(diff_threat_cons$mar_diff, diff_threat_cons$marine)
+cor.test(diff_threat_cons$land_diff, diff_threat_cons$land)
+```
+
+```{r}
+diff_median_climate_index<-median(diff_threat_cons$climate, na.rm = T)
+diff_median_climate_stress<-median(diff_threat_cons$clim_diff, na.rm = T)
+
+# High change in impacts low management
+test<-diff_threat_cons[which(diff_threat_cons$clim_diff>=diff_median_climate_stress & diff_threat_cons$climate<diff_median_climate_index),]
+
+# High change in impacts high management
+test<-diff_threat_cons[which(diff_threat_cons$clim_diff>=diff_median_climate_stress & diff_threat_cons$climate>=diff_median_climate_index),]
+
+# High change in impacts high management
+test<-diff_threat_cons[which(diff_threat_cons$clim_diff>=diff_median_climate_stress & diff_threat_cons$climate>=diff_median_climate_index),]
+
+
+```
+
+```{r}
+diff_median_marine_index<-median(diff_threat_cons$marine, na.rm = T)
+diff_median_marine_stress<-median(diff_threat_cons$mar_diff, na.rm = T)
+
+# High change in impacts low management
+test<-diff_threat_cons[which(diff_threat_cons$mar_diff>=diff_median_marine_stress & diff_threat_cons$marine<diff_median_marine_index),]
+
+# High change in impacts high management
+test<-diff_threat_cons[which(diff_threat_cons$mar_diff>=diff_median_marine_stress & diff_threat_cons$marine>=diff_median_marine_index),]
+
+```
+
+```{r}
+diff_median_land_index<-median(diff_threat_cons$land, na.rm = T)
+diff_median_land_stress<-median(diff_threat_cons$land_diff, na.rm = T)
+
+# High impacts low management
+test<-diff_threat_cons[which(diff_threat_cons$land_diff>=diff_median_land_stress & diff_threat_cons$land<diff_median_land_index),]
+
+# High impacts high management
+test<-diff_threat_cons[which(diff_threat_cons$land_diff>=diff_median_land_stress & diff_threat_cons$land>=diff_median_land_index),]
+```
+
+# Remove outliers
+
+Pressure outliers
+
+```{r}
+pressure_outliers<-ggplot(threat_cons_long, aes(x=cat_stress, y=stress, color=cat_stress, label = ISO_Ter1)) +
+  geom_boxplot()+
+  stat_summary(
+    aes(label = round(stat(y), 1)),
+    geom = "text", 
+    fun = function(y) { o <- boxplot.stats(y)$out; if(length(o) == 0) NA else o },
+    hjust = -1
+  ) +
+  theme_bw() +
+  labs(y = "Pressure", x = "Category")
+
+# Singapore is outlier for marine and land
+
+pressure_outliers
+
+ggsave("/home/kuempel/Cumulative_threats_data/Figures/Pressure_outliers.png", dpi = 300)
+
+```
+
+Outliers for index
+
+```{r}
+index_outliers<-ggplot(threat_cons_long, aes(x=cat_stress, y=cons_index, color=cat_stress, label = ISO_Ter1)) +
+  geom_boxplot()+
+  stat_summary(
+    aes(label = round(stat(y), 2)),
+    geom = "text", 
+    fun.y = function(y) { o <- boxplot.stats(y)$out; if(length(o) == 0) NA else o },
+    hjust = -1
+  ) +
+  theme_bw() +
+  labs(y = "Index", x = "Category")
+
+index_outliers
+
+# Sri Lanka is an outlier on land
+# Fiji, Solomon Islands and Bangladesh are outliers in climate
+
+ggsave("/home/kuempel/Cumulative_threats_data/Figures/Index_outliers.png", dpi = 300)
+```
+
+```{r}
+sub_clim<-threat_cons %>% 
+  filter(!ISO_Ter1 %in% c("FJI", "BGD"))
+
+cor.test(sub_clim$climate, sub_clim$clim_mean, method = "pearson")
+cor.test(threat_cons$climate, threat_cons$clim_mean, method = "pearson")
+
+sub_land<-threat_cons %>% 
+  filter(!ISO_Ter1 %in% c("SGP"))
+
+cor.test(sub_land$land, sub_land$land_mean, method = "pearson")
+
+sub_marine<-threat_cons %>% 
+  filter(!ISO_Ter1 %in% c("SGP"))
+
+cor.test(sub_marine$marine, sub_marine$mar_mean, method = "pearson")
+```
+
+# Figure
+
+We will plot pressure vs. index for each cateogry with trend line and median pressure/median index in dotted lines.
+Also will add some ISO3 names
+
+## Climate
+
+```{r}
+library(ggrepel)
+
+clim_plot<-ggplot(threat_cons, aes(x = climate, y = clim_mean, label = ISO_Ter1)) +
+  geom_point() +
+  theme_bw() +
+  labs(x = "", y = "Pressure") +
+  geom_text_repel() +
+  geom_hline(yintercept = median_climate_stress, linetype = "dashed") +
+  geom_vline(xintercept = median_climate_index, linetype = "dashed") +
+  geom_smooth(method = "lm") +
+  ggtitle('Climate') +
+  theme(plot.title = element_text(hjust = 0.5))
+
+clim_plot
+```
+
+```{r}
+mar_plot<-ggplot(threat_cons, aes(x = marine, y = mar_mean, label = ISO_Ter1)) +
+  geom_point() +
+  theme_bw() +
+  labs(x = "Index", y = "") +
+  geom_text_repel() +
+  geom_hline(yintercept = median_marine_stress, linetype = "dashed") +
+  geom_vline(xintercept = median_marine_index, linetype = "dashed") +
+  geom_smooth(method = "lm")+
+  ggtitle('Marine') +
+  theme(plot.title = element_text(hjust = 0.5))
+
+mar_plot
+```
+
+```{r}
+
+land_plot<-ggplot(threat_cons, aes(x = land, y = land_mean, label = ISO_Ter1)) +
+  geom_point() +
+  theme_bw() +
+  labs(x = "", y = "") +
+  geom_text_repel() +
+  geom_hline(yintercept = median_land_stress, linetype = "dashed") +
+  geom_vline(xintercept = median_land_index, linetype = "dashed") +
+  geom_smooth(method = "lm") +
+  ggtitle('Land') +
+  theme(plot.title = element_text(hjust = 0.5))
+
+land_plot
+```
+
+
+```{r}
+diff_clim_plot<-ggplot(diff_threat_cons, aes(x = climate, y = clim_diff, label = ISO_Ter1)) +
+  geom_point() +
+  theme_bw() +
+  labs(x = "", y = "Change in pressure") +
+  geom_text_repel() +
+  geom_hline(yintercept = diff_median_climate_stress, linetype = "dashed") +
+  geom_vline(xintercept = diff_median_climate_index, linetype = "dashed") +
+  geom_smooth(method = "lm") +
+  #ggtitle('Climate') +
+  theme(plot.title = element_text(hjust = 0.5))
+
+diff_clim_plot
+```
+
+```{r}
+
+diff_mar_plot<-ggplot(diff_threat_cons, aes(x = marine, y = mar_diff, label = ISO_Ter1)) +
+  geom_point() +
+  theme_bw() +
+  labs(x = "Index", y = "") +
+  geom_text_repel() +
+  geom_hline(yintercept = diff_median_marine_stress, linetype = "dashed") +
+  geom_vline(xintercept = diff_median_marine_index, linetype = "dashed") +
+  geom_smooth(method = "lm")+
+  #ggtitle('Marine') +
+  theme(plot.title = element_text(hjust = 0.5))
+
+diff_mar_plot
+```
+
+```{r}
+
+diff_land_plot<-ggplot(diff_threat_cons, aes(x = land, y = land_diff, label = ISO_Ter1)) +
+  geom_point() +
+  theme_bw() +
+  labs(x = "", y = "") +
+  geom_text_repel() +
+  geom_hline(yintercept = diff_median_land_stress, linetype = "dashed") +
+  geom_vline(xintercept = diff_median_land_index, linetype = "dashed") +
+  geom_smooth(method = "lm") +
+  #ggtitle('Land') +
+  theme(plot.title = element_text(hjust = 0.5))
+
+diff_land_plot
+```
+
+```{r}
+library(patchwork)
+
+patch<-clim_plot + mar_plot + land_plot + diff_clim_plot + diff_mar_plot + diff_land_plot +
+  plot_annotation(tag_levels = 'A')
+
+patch
+```
+
+```{r}
+ggsave(here("Figures/Pressure_indices.png"), width = 13, height = 8, dpi = 300)
+```
+
+# compare BCU and country
+
+Look into Kenya and Somlia
+```{r}
+bcu_country<-full_join(reef_threats_df, eez_reef_df, by = "BCUID") %>% 
+  full_join(iso3_threats_df, by = "ISO_Ter1")
+```
+
+
+# Calculate % decrease in CHI if cumulative land and marien threats were avoided between 2008 and 2013
+
+```{r}
+reef_all<-full_join(reef_threats_df, diff_reef_threats_df, by = "BCUID") %>% 
+  mutate(cum_2013 = cum_mean + cum_diff,
+         test_mar = ifelse(mar_diff >0, 0, as.numeric(mar_diff)),
+         test_land = ifelse(land_diff>0, 0, as.numeric(land_diff)),
+         test_cum_2013 = (clim_mean + clim_diff) + (land_mean + test_land) + (mar_mean + test_mar),
+         perc_diff = (cum_2013 - test_cum_2013)/cum_2013)
+```
+
