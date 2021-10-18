@@ -59,8 +59,8 @@ med_reef_mar<-median(reef_threats_df$mar_mean)
 reef_plot<-ggplot(reef_threats_df, aes(x = land_mean, y = mar_mean, label = BCUID)) +
   geom_point() +
   theme_bw() + 
-  geom_hline(yintercept = med_iso3_mar) +
-  geom_vline(xintercept = med_iso3_land) +
+  geom_hline(yintercept = med_reef_mar) +
+  geom_vline(xintercept = med_reef_land) +
   xlab("Average cumulative land impact") +
   ylab("Average cumulative marine impact") + 
   geom_text_repel() +
@@ -261,14 +261,14 @@ ggsave(here("figures/Figure4_impact_2013_vs_change.png"), width = 13, height = 1
 
 
 ```{r}
-med<-median(reef_join$cum_mean)
-med_diff<-median(reef_join$cum_diff)
+med_reef<-median(reef_join$cum_mean)
+med_diff_reef<-median(reef_join$cum_diff)
 
 reef_cum_plot<-ggplot(reef_join, aes(x = cum_mean, y = cum_diff, label = BCUID)) +
   geom_point() +
   theme_bw() +
-  geom_hline(yintercept = med_diff) +
-  geom_vline(xintercept = med) +
+  geom_hline(yintercept = 0) +
+  geom_vline(xintercept = med_reef) +
   xlab("Cumulative impact (2013)") +
   ylab("Change in impact (2008-2013)") +
   geom_text_repel() +
@@ -279,13 +279,30 @@ reef_cum_plot
 ```
 
 ```{r}
+# Large 2013 AND Large increase
+test<-reef_join[which(reef_join$cum_mean>=med_reef & reef_join$cum_diff >= med_diff_reef),]
+nrow(test)
+
+test2<-test[which(test$land_diff>0 | test$mar_diff>0),]
+nrow(test2)
+
+
+# Large 2013 AND INCREASED at all
+test<-reef_join[which(reef_join$cum_mean>=med_reef & reef_join$cum_diff > 0),]
+nrow(test)
+
+test2<-test[which(test$land_diff>0 | test$mar_diff>0),]
+nrow(test2)
+```
+
+```{r}
 med<-median(iso3_join$cum_mean)
-med_diff<-median(iso3_join$cum_diff)
+med_diff_iso3<-median(iso3_join$cum_diff)
 
 iso3_cum_plot<-ggplot(iso3_join, aes(x = cum_mean, y = cum_diff, label = ISO_Ter1)) +
   geom_point() +
   theme_bw() +
-  geom_hline(yintercept = med_diff) +
+  geom_hline(yintercept = 0) +
   geom_vline(xintercept = med) +
   xlab("Cumulative impact (2013)") +
   ylab("Change in impact (2008-2013)") +

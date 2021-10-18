@@ -616,8 +616,6 @@ pressure_outliers<-ggplot(threat_cons_long, aes(x=cat_stress, y=stress, color=ca
 
 pressure_outliers
 
-ggsave("/home/kuempel/Cumulative_threats_data/Figures/Pressure_outliers.png", dpi = 300)
-
 ```
 
 Outliers for index
@@ -638,8 +636,6 @@ index_outliers
 
 # Sri Lanka is an outlier on land
 # Fiji, Solomon Islands and Bangladesh are outliers in climate
-
-ggsave("/home/kuempel/Cumulative_threats_data/Figures/Index_outliers.png", dpi = 300)
 ```
 
 ```{r}
