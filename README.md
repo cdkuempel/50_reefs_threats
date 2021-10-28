@@ -1,15 +1,15 @@
 # 50_reefs_threats
 
-This repository accompanies the publication by Kuempel et al. 2021 Identifying management opportunities to combat climate, land, and marine threats across less climate exposed coral reefs in the journal Conservation Biology.
+This repository accompanies the publication by Kuempel et al. 2021 Identifying management opportunities to combat climate, land, and marine threats across less climate exposed coral reefs in the journal Conservation Biology. 
 
 Repository structure
 # 1. data
 
-There are two main data folders: raw_data and output_data. Many of the data used in the analysis are large spatial files that take significant time to process. We recommend using a server or downloading the files directly from XXX.
+There are two main data folders: raw_data and output_data. Many of the data used in the analysis are large spatial files that take significant time to process. We recommend using a server if re-running the analysis. These data files can be downloaded at: https://doi.org/10.5281/zenodo.5579982. Download and unzip the data into the main github repository folder. Some of the raw_data is downloaded directly within the scripts. Similarly, some of the output_data has been removed, but can be re-created by re-running the analysis. The raw_data and output_data not provided is not required for recreating the general results and figures.
 
 # 2. scripts
 
-There are seven scripts that should be executed in sequential order as follows:
+The results and figures from the manuscript can be recreated by running scripts 5-7 listed below. To repeat the entire analysis, there are seven scripts that should be executed in sequential order as follows:
 
   1. Download_pressure.Rmd - this script downloads the data layers for calculating 2013 cumulative impact (global, climate, land, marine) from the KNB repository. The data is based on publication the from Halpern et al. 2015.
 
@@ -38,5 +38,3 @@ Figure 3, 4, 5, S2, and S3 are created within the Figure.Rmd script. Significant
 Figure S1. This figure is created within the Management_index.Rmd script. The figures are saved in the figure folder as Climate_corrplot.png, Marine_corrplot.png and Land_corrplot.png. Further editing was done in powerpoint.
 
 Figure S4. This figure is created in the script Supp_boxplot_figure.Rmd.
-
-
